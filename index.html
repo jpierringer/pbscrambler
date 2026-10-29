@@ -116,15 +116,26 @@ const allIn=r=>r.every(filled);
 const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn);
 
 /* ---------- payouts + schedule ---------- */
-function weights(k){
-  if(k==4)return[3.5,2,1.5,1];
-  return Array.from({length:k},(_,i)=>Math.pow(k-i,1.4));
-}
+/* Payouts: 1st gets half the pot and the last paid place gets exactly its entry fee back. The other places
+   share what's left, stepping down evenly. Places paid: 3 for 4-7 players, 4 for 8-13, 5 for 14-16.
+   Amounts are whole units of the fee's smallest step ($1 for whole-dollar fees) and always add up to the pot. */
+function payoutPlaces(n){return n<=7?3:n<=13?4:5}
 function payouts(n,fee){
-  const k=Math.floor(n/2),w=weights(k),sum=w.reduce((a,b)=>a+b,0),pool=n*fee;
-  const p=w.map(x=>Math.round(pool*x/sum));
-  p[0]+=pool-p.reduce((a,b)=>a+b,0);
-  return p;
+  const u=[1,.5,.25,.1,.05,.01].find(x=>Math.abs(fee/x-Math.round(fee/x))<1e-6)||.01;
+  const f=Math.round(fee/u),P=n*f,first=Math.round(P/2);
+  let k=payoutPlaces(n);
+  while(k>2&&P-first-(k-1)*f<0)k--;
+  const m=k-1,E=P-first-m*f,ex=Array(m).fill(0);
+  if(m===1)ex[0]=E;
+  else{
+    const w=Array.from({length:m},(_,j)=>m-1-j),sum=w.reduce((x,y)=>x+y,0);
+    const ideal=w.map(x=>E*x/sum);
+    ideal.forEach((v,i)=>ex[i]=Math.floor(v+1e-9));
+    let left=E-ex.reduce((x,y)=>x+y,0);
+    const order=ideal.map((_,i)=>i).sort((x,y)=>(ideal[y]-ex[y])-(ideal[x]-ex[x])||x-y);
+    for(let j=0;left>0;j++,left--)ex[order[j%order.length]]++;
+  }
+  return [first,...ex.map(e=>f+e)].map(x=>Math.round(x*u*100)/100).sort((x,y)=>y-x);
 }
 function genSchedule(n,R){
   const b=n%4;               // players sitting out each round
