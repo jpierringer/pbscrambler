@@ -70,6 +70,7 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .sp{margin-top:10px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat{background:var(--bg);border-radius:10px;padding:10px 4px;text-align:center}
+.dim{opacity:.55}
 .stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--mu)}
 </style></head><body><main id="app"></main>
 <div id="toast" class="hide" role="status"></div>
@@ -86,7 +87,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true;
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[];
 
 /* ---------- helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
@@ -236,6 +237,7 @@ function render(){
   else if(view==='home')a.innerHTML=homeHTML();
   else if(view==='lobby'){a.innerHTML=lobbyHTML();renderMembers();updateNote()}
   else if(view==='play'){a.innerHTML=playHTML();renderPlayBody()}
+  else if(view==='board')a.innerHTML=boardHTML();
   else if(view==='open'){a.innerHTML=openHTML();renderOpen()}
   else if(view==='done'){a.innerHTML=doneHTML()}
 }
@@ -279,7 +281,7 @@ function homeHTML(){
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
       <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
   }
-  h+=statsHTML();
+  h+=boardCardHTML()+statsHTML();
   if(mine.length){
     h+='<div class="card"><h2>Your tournaments</h2>'+mine.map(t=>{
       let st;
@@ -439,6 +441,31 @@ function doneHTML(){
   `</table></div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
 }
 
+/* ----- leaderboard ----- */
+const isMe=x=>!!prof&&String(x.username).toLowerCase()===prof.username.toLowerCase();
+const rankedNow=()=>board.filter(x=>x.ranked&&x.active);
+function boardCardHTML(){
+  if(!board.length)return `<div class="card"><div class="tl" data-act="board" style="border:0;padding:0"><div><h2 style="margin:0 0 2px">Leaderboard</h2><span>No ratings yet. They start after your first finished event.</span></div><span>›</span></div></div>`;
+  const me=board.find(isMe),rk=rankedNow(),pos=me&&me.ranked&&me.active?rk.indexOf(me)+1:0;
+  const line=me?`Your rating <b style="color:var(--tx)">${(+me.rating).toFixed(2)}</b> · ${pos?`#${pos} of ${rk.length}`:'not ranked yet'}`:`${board.length} players rated`;
+  return `<div class="card"><div class="tl" data-act="board" style="border:0;padding:0"><div><h2 style="margin:0 0 2px">Leaderboard</h2><span>${line}</span></div><span>›</span></div></div>`;
+}
+function boardHTML(){
+  const rk=rankedNow(),ia=board.filter(x=>x.ranked&&!x.active),pv=board.filter(x=>!x.ranked);
+  const dt=d=>{const x=new Date(d),o={month:'short',day:'numeric'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleDateString(undefined,o)};
+  const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>Rating</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="${isMe(x)?'me':''}"><td>${num?i+1:''}</td><td>${esc(x.username)}${x.reliable?'':'<span class="badge">settling</span>'}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
+  let h=`<div class="top"><h1>Leaderboard</h1><button class="sec" data-act="home">Home</button></div>
+  <div class="sub">Everyone's rating, 2.0 to 8.0. New players start at 3.5.</div>`;
+  if(!board.length)h+=`<div class="card"><div class="note" style="margin:0">No ratings yet. Ratings are built from finished events where all four players in a game have accounts.</div></div>`;
+  else{
+    h+=`<div class="card"><h2>Ranked (${rk.length})</h2>${rk.length?tbl(rk,true):'<div class="note" style="margin:0">Nobody is ranked yet. You need 8 rated games across at least 2 events.</div>'}</div>`;
+    if(pv.length)h+=`<div class="card"><h2>Not ranked yet (${pv.length})</h2>${tbl(pv,false)}<div class="note">Listed once a player has 8 rated games across at least 2 events.</div></div>`;
+    if(ia.length)h+=`<div class="card dim"><h2>Inactive (${ia.length})</h2>${tbl(ia,false)}<div class="note">No games in the last 6 months. They return to the ranking when they play again.</div></div>`;
+  }
+  h+=`<div class="card"><h2>How ratings work</h2><div class="note" style="margin-top:0">Every game compares how many points each side won with what their ratings predicted. Winning never lowers your rating and losing never raises it, so a favorite who wins by less than expected stays put. Beating stronger players moves you more. New or returning players adjust faster. Games with a guest (no account) don't count. "Settling" means the rating is still moving quickly.</div></div>`;
+  return h;
+}
+
 /* ----- open play ----- */
 const gDone=g=>g.sa!=null&&g.sb!=null;
 const gTeam=t=>t.map(x=>esc(x.n)).join(' &amp; ');
@@ -524,6 +551,7 @@ function doneOpenHTML(){
 async function loadMine(){
   const {data}=await sb.from('tournaments').select('id,code,status,current_round,created_at,fee,result,admin_id,kind,money').order('created_at',{ascending:false}).limit(100);
   mine=data||[];
+  const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[];
 }
 async function loadMembers(){
   const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
@@ -641,6 +669,7 @@ const actions={
   noinvite(){pendingCode='';history.replaceState(null,'',location.pathname);render()},
   async open(el){if(!await openT(el.dataset.id))toast('Could not open that tournament')},
   home(){return goHome()},
+  async board(){await loadMine();view='board';render();window.scrollTo(0,0)},
   async share(){
     const url=link();
     if(navigator.share){try{await navigator.share({title:'Pickleball Scrambler',text:'Join my pickleball tournament! Code '+T.code,url});return}catch(e){if(e.name==='AbortError')return}}
@@ -688,7 +717,7 @@ const actions={
 };
 document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-act]');if(!el||!actions[el.dataset.act])return;
-  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit'].includes(act);
+  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board'].includes(act);
   if(lock)el.disabled=true;
   try{await actions[act](el)}catch(err){console.error(err)}
   if(lock&&el.isConnected)el.disabled=false;
