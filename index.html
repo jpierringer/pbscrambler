@@ -10,10 +10,10 @@
 <meta name="apple-mobile-web-app-title" content="Scrambler">
 <meta name="theme-color" content="#2f7d32">
 <style>
-:root{--bg:#f6f7f4;--card:#fff;--tx:#1b2418;--mu:#6b7566;--ac:#2f7d32;--ac2:#e8f3e6;--bd:#dde2d8;--gold:#b8860b;
+:root{--bg:#f6f7f4;--card:#fff;--tx:#1b2418;--mu:#6b7566;--ac:#2f7d32;--ac2:#e8f3e6;--bd:#dde2d8;--gold:#b8860b;--neg:#c0392b;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141913;--card:#1d241c;--tx:#e8eee4;--mu:#93a08c;--ac:#6cc070;--ac2:#243322;--bd:#2e3a2c;--gold:#e0b84a}}
-:root[data-theme="dark"]{--bg:#141913;--card:#1d241c;--tx:#e8eee4;--mu:#93a08c;--ac:#6cc070;--ac2:#243322;--bd:#2e3a2c;--gold:#e0b84a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141913;--card:#1d241c;--tx:#e8eee4;--mu:#93a08c;--ac:#6cc070;--ac2:#243322;--bd:#2e3a2c;--gold:#e0b84a;--neg:#ec7063}}
+:root[data-theme="dark"]{--bg:#141913;--card:#1d241c;--tx:#e8eee4;--mu:#93a08c;--ac:#6cc070;--ac2:#243322;--bd:#2e3a2c;--gold:#e0b84a;--neg:#ec7063}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -21,12 +21,13 @@ main{max-width:560px;margin:0 auto;padding:16px}
 h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:0 0 10px}
 .sub{color:var(--mu);font-size:14px;margin-bottom:14px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px}
-label{display:block;font-size:13px;color:var(--mu);margin-bottom:4px}
+label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
+.card>label:first-child{margin-top:0}
 input,select{width:100%;font:inherit;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
 .row{display:flex;gap:10px}.row>*{flex:1}
 button{font:inherit;font-weight:600;padding:12px 16px;border:0;border-radius:10px;background:var(--ac);color:#fff;cursor:pointer;width:100%}
+button:disabled{opacity:.5}
 button.sec{background:var(--ac2);color:var(--ac)}
-.names{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}
 .tabs button{width:auto;flex:none;padding:8px 14px;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
 .tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
@@ -35,56 +36,71 @@ button.sec{background:var(--ac2);color:var(--ac)}
 .match:last-child{border:0;margin:0;padding:0}
 .match .vs{grid-column:1/-1;text-align:center;color:var(--mu);font-size:12px;margin:-2px 0}
 .match input{text-align:center;font-weight:700;font-size:18px}
+.sc{text-align:center;font-weight:700;font-size:18px}
 .t{font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:15px}
 th{font-size:12px;color:var(--mu);text-align:right;font-weight:600;padding:4px}
 td{padding:8px 4px;text-align:right;border-top:1px solid var(--bd)}
 th:first-child,td:first-child{text-align:left}th:nth-child(2),td:nth-child(2){text-align:left}
+tr.me td{font-weight:700;background:var(--ac2)}
 .pay{color:var(--gold);font-weight:700}
+.pos{color:var(--ac)}.neg{color:var(--neg)}
 .top{display:flex;justify-content:space-between;align-items:center}
 .top button{width:auto;padding:6px 12px;font-size:13px}
 .note{font-size:12px;color:var(--mu);margin-top:8px}
 .hide{display:none}
-#toast{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:528px;margin:0 auto;background:var(--tx);color:var(--bg);padding:12px 14px;border-radius:10px;font-size:14px;text-align:center}
-details{border-top:1px solid var(--bd);padding:8px 0}details:first-of-type{border:0}
-summary{cursor:pointer;font-weight:600}summary span{color:var(--mu);font-weight:400;font-size:13px}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:528px;margin:0 auto;background:var(--tx);color:var(--bg);padding:12px 14px;border-radius:10px;font-size:14px;text-align:center;z-index:9}
 .del{background:none;color:var(--mu);width:auto;padding:4px 0;font-size:12px;font-weight:500;text-decoration:underline}
-</style></head><body><main>
-<div id="setup">
-  <h1 style="display:flex;align-items:center;gap:8px"><svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>Pickleball Scrambler</h1>
-  <div class="sub">Random partners each round. No repeat partners, max 2 meetings with any opponent.</div>
-  <div class="card">
-    <div class="row">
-      <div><label>Entry fee ($)</label><input id="fee" type="number" min="0" step="0.5" value="2"></div>
-      <div><label>Players</label><select id="np"><option>4</option><option selected>8</option><option>12</option><option>16</option></select></div>
-    </div>
-    <div class="names" id="names"></div>
-    <div class="note" id="payprev"></div>
-  </div>
-  <button id="start">Start tournament</button>
-  <div id="hist"></div>
-</div>
-
-<div id="play" class="hide">
-  <div class="top"><h1>Tournament</h1><button class="sec" id="reset">New</button></div>
-  <div class="sub" id="pool"></div>
-  <div class="tabs" id="tabs"></div>
-  <div class="card" id="round"></div>
-  <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
-    <div class="note">Ranked by total points scored, then point differential. Ties split nothing automatically, so settle ties by hand.</div></div>
-  <button id="fin" class="hide" style="margin-bottom:10px">Finish &amp; save to history</button>
-  <button class="sec" id="reshuf">Reshuffle teams (before scoring)</button>
-</div>
-</main>
+.code{font-size:34px;font-weight:800;letter-spacing:8px;text-align:center;padding:4px 0 8px;color:var(--ac)}
+.lnk{display:flex;gap:8px}.lnk input{font-size:13px}.lnk button{width:auto;flex:none;padding:10px 14px}
+.mrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--bd)}
+.mrow:first-child{border:0}
+.badge{font-size:11px;background:var(--ac2);color:var(--ac);border-radius:6px;padding:2px 6px;margin-left:6px;font-weight:600}
+.tl{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--bd);cursor:pointer}
+.tl:first-of-type{border:0}
+.tl span{color:var(--mu);font-size:13px}
+.sp{margin-top:10px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--bg);border-radius:10px;padding:10px 4px;text-align:center}
+.stat b{display:block;font-size:18px}.stat span{font-size:11px;color:var(--mu)}
+</style></head><body><main id="app"></main>
 <div id="toast" class="hide" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const $=id=>document.getElementById(id);
-let S=null,cur=0;
-const KEY='pb_scrambler';
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function load(){try{const v=localStorage.getItem(KEY);return v?JSON.parse(v):null}catch(e){return null}}
-const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+/* ===== CONFIG: paste from Supabase > Project Settings > API ===== */
+const SUPABASE_URL='https://sjwarllnehssyphoormc.supabase.co';
+const SUPABASE_KEY='sb_publishable_eGv0iwOKZ1DP6JixaXZnrQ_vI6nax4S';
+/* ================================================================ */
 
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
+const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
+
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,saveT=null,busy=false,pendingCode='',authMode='in';
+
+/* ---------- helpers ---------- */
+function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
+function twoTap(btn,label,fn){
+  if(btn.dataset.arm){clearTimeout(btn._t);delete btn.dataset.arm;btn.textContent=btn._orig;fn();return}
+  btn._orig=btn.textContent;btn.dataset.arm=1;btn.textContent=label;
+  btn._t=setTimeout(()=>{delete btn.dataset.arm;btn.textContent=btn._orig},3000);
+}
+async function rpc(fn,args){
+  const {data,error}=await sb.rpc(fn,args);
+  if(error){toast(error.message);throw error}
+  return data;
+}
+const $$=v=>'$'+(Math.round(v*100)/100);
+const money=v=>(v>0?'+':v<0?'−':'')+$$(Math.abs(v));
+const cls=v=>v>0?'pos':v<0?'neg':'';
+const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const cleanCode=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
+const isAdmin=()=>!!(T&&prof&&T.admin_id===prof.id);
+const filled=m=>m.sa!==''&&m.sb!=='';
+
+/* ---------- payouts + schedule ---------- */
 function weights(k){
   if(k==4)return[3.5,2,1.5,1];
   return Array.from({length:k},(_,i)=>Math.pow(k-i,1.4));
@@ -95,8 +111,6 @@ function payouts(n,fee){
   p[0]+=pool-p.reduce((a,b)=>a+b,0);
   return p;
 }
-const $$=v=>'$'+(Math.round(v*100)/100);
-
 function genSchedule(n){
   const R=n/2;
   for(let limit=2;limit<=4;limit++){
@@ -134,104 +148,350 @@ function genSchedule(n){
   }
   return null;
 }
-
-function buildNames(){
-  const n=+$('np').value,old=[...document.querySelectorAll('#names input')].map(i=>i.value);
-  $('names').innerHTML=Array.from({length:n},(_,i)=>`<input value="${(old[i]||'Player '+(i+1)).replace(/"/g,'&quot;')}" aria-label="Player ${i+1}">`).join('');
-  prev();
-}
-function prev(){
-  const n=+$('np').value,f=+$('fee').value||0,p=payouts(n,f);
-  $('payprev').textContent=`Pool ${$$(n*f)} · ${n/2} rounds · Payouts: ${p.map((x,i)=>(i+1)+'st '.slice(0,0)+'#'+(i+1)+' '+$$(x)).join(', ')}`;
-}
-$('np').onchange=buildNames;$('fee').oninput=prev;
-
-$('start').onclick=()=>{
-  const names=[...document.querySelectorAll('#names input')].map((i,k)=>i.value.trim()||'Player '+(k+1));
-  const n=names.length,rounds=genSchedule(n);
-  if(!rounds){toast('Could not build a valid schedule. Try again.');return}
-  S={names,fee:+$('fee').value||0,rounds};cur=0;save();show();
-};
-function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3000)}
-function twoTap(btn,label,fn){
-  if(btn.dataset.arm){clearTimeout(btn._t);delete btn.dataset.arm;btn.textContent=btn._orig;fn();return}
-  btn._orig=btn.textContent;btn.dataset.arm=1;btn.textContent=label;
-  btn._t=setTimeout(()=>{delete btn.dataset.arm;btn.textContent=btn._orig},3000);
-}
-$('reset').onclick=()=>twoTap($('reset'),'Tap again to discard',()=>{S=null;try{localStorage.removeItem(KEY)}catch(e){}show();window.scrollTo(0,0)});
-$('reshuf').onclick=()=>{
-  if(S.rounds.some(r=>r.some(m=>m.sa!==''||m.sb!=='')))return toast('Scores are already entered. Start a new tournament to reshuffle.');
-  const r=genSchedule(S.names.length);if(r){S.rounds=r;save();render()}
-};
-
-const team=t=>t.map(i=>S.names[i]).join(' & ');
-const filled=m=>m.sa!==''&&m.sb!=='';
-
 function standings(){
-  const s=S.names.map((n,i)=>({i,n,pf:0,pa:0}));
-  S.rounds.forEach(r=>r.forEach(m=>{
+  const s=T.players.map((n,i)=>({i,n,pf:0,pa:0}));
+  T.rounds.forEach(r=>r.forEach(m=>{
     if(!filled(m))return;
     m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb});
     m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa});
   }));
   return s.sort((x,y)=>y.pf-x.pf||(y.pf-y.pa)-(x.pf-x.pa));
 }
+const team=t=>t.map(i=>esc(T.players[i])).join(' &amp; ');
+const link=()=>location.href.split('#')[0].split('?')[0]+'?t='+T.code;
+
+/* ---------- my stats (from finished tournaments) ---------- */
+function myResults(){
+  return mine.filter(t=>t.status==='done'&&Array.isArray(t.result)).map(t=>{
+    const i=t.result.findIndex(x=>x.p===prof.id);
+    return i<0?null:{t,rank:i+1,n:t.result.length,fee:+t.fee,pay:+t.result[i].pay||0};
+  }).filter(Boolean);
+}
+function statsHTML(){
+  const rs=myResults();if(!rs.length)return '';
+  const spent=rs.reduce((a,r)=>a+r.fee,0),won=rs.reduce((a,r)=>a+r.pay,0),net=won-spent;
+  const roi=spent?Math.round(net/spent*100):0;
+  const avg=(rs.reduce((a,r)=>a+r.rank,0)/rs.length).toFixed(1);
+  const firsts=rs.filter(r=>r.rank===1).length,cashed=rs.filter(r=>r.pay>0).length;
+  const tile=(b,s,c='')=>`<div class="stat"><b class="${c}">${b}</b><span>${s}</span></div>`;
+  return `<div class="card"><h2>Your record</h2><div class="stats">
+    ${tile(rs.length,'Played')}${tile(firsts,'1st places')}${tile(avg,'Avg finish')}
+    ${tile($$(spent),'Spent')}${tile($$(won),'Won')}${tile(money(net),'Net · '+(roi>0?'+':'')+roi+'% ROI',cls(net))}
+  </div><div class="note">Cashed in ${cashed} of ${rs.length}. Finished tournaments only.</div></div>`;
+}
+
+/* ---------- views ---------- */
 function render(){
-  const R=S.rounds.length;
-  $('tabs').innerHTML=S.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${r.every(filled)?'done':''}" data-r="${i}">Round ${i+1}</button>`).join('');
-  $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{cur=+b.dataset.r;render()});
-  $('round').innerHTML=`<h2>Round ${cur+1} of ${R}</h2>`+S.rounds[cur].map((m,j)=>`
-    <div class="match"><div class="t">${team(m.a)}</div><input type="number" inputmode="numeric" min="0" data-m="${j}" data-s="sa" value="${m.sa}" placeholder="0">
+  const a=$('app');
+  if(view==='auth')a.innerHTML=authHTML();
+  else if(view==='home')a.innerHTML=homeHTML();
+  else if(view==='lobby'){a.innerHTML=lobbyHTML();renderMembers();updateNote()}
+  else if(view==='play'){a.innerHTML=playHTML();renderPlayBody()}
+  else if(view==='done'){a.innerHTML=doneHTML()}
+}
+
+function authHTML(){
+  const nw=authMode==='new',u=esc(ls.get('pb_user')||'');
+  return TITLE+`<div class="sub">Random partners each round. No repeat partners, max 2 meetings with any opponent.</div>
+  ${pendingCode?`<div class="card" style="text-align:center"><h2>You're invited 🎉</h2><div class="code" style="padding-bottom:0">${esc(pendingCode)}</div><div class="note">Sign in or create an account to join.</div></div>`:''}
+  <div class="card"><div class="tabs">
+    <button class="${nw?'':'on'}" data-act="mode" data-m="in">Sign in</button>
+    <button class="${nw?'on':''}" data-act="mode" data-m="new">Create account</button></div>
+    <label>Username</label><input id="un" maxlength="20" autocapitalize="none" autocomplete="username" value="${u}" placeholder="Pick a name others will recognize">
+    <label>PIN (4–6 digits)</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="${nw?'new-password':'current-password'}" placeholder="••••">
+    ${nw?`<label>Confirm PIN</label><input id="pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••">`:''}
+    <button class="sp" data-act="auth">${nw?'Create account':'Sign in'}</button>
+    <div class="note">No email needed. Your username and PIN keep your tournament history on any phone. There's no PIN reset, so pick one you'll remember.</div></div>`;
+}
+
+function homeHTML(){
+  let h=TITLE+`<div class="sub">Signed in as <b>${esc(prof.username)}</b> · <button class="del" data-act="signout">Sign out</button></div>`;
+  if(pendingCode){
+    h+=`<div class="card"><h2>You're invited 🎉</h2>
+      <div class="code">${esc(pendingCode)}</div>
+      <input id="code" type="hidden" value="${esc(pendingCode)}">
+      <button data-act="join">Join as ${esc(prof.username)}</button>
+      <div style="text-align:center;margin-top:8px"><button class="del" data-act="noinvite">Not this one? Go back</button></div></div>`;
+  }else{
+    h+=`<div class="card"><button data-act="create">Start a new tournament</button>
+      <div class="note">You'll be the organizer: you set the entry fee, enter scores and start the games.</div></div>
+      <div class="card"><h2>Join with a code</h2>
+      <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
+      <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
+  }
+  h+=statsHTML();
+  if(mine.length){
+    h+='<div class="card"><h2>Your tournaments</h2>'+mine.map(t=>{
+      let st;
+      if(t.status==='done'){
+        const i=(t.result||[]).findIndex(x=>x.p===prof.id);
+        if(i<0)st=`🏆 ${esc(t.result?.[0]?.n||'')}`;
+        else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
+      }else st=t.status==='playing'?'In progress':'Lobby';
+      return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${new Date(t.created_at).toLocaleDateString()}</b> <span>· ${esc(t.code)}${t.admin_id===prof.id?' · organizer':''}</span></div><span>${st} ›</span></div>`;
+    }).join('')+'</div>';
+  }
+  return h;
+}
+
+function lobbyHTML(){
+  const adm=isAdmin();
+  return `<div class="top"><h1>Lobby</h1><button class="sec" data-act="home">Home</button></div>
+  <div class="sub">${adm?'You are the organizer.':'Waiting for everyone to join.'}</div>
+  <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
+    <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div>
+    <div class="note">Anyone with the link can join until the tournament starts.</div></div>
+  <div class="card"><div class="row">
+    <div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>
+    <div><label style="margin-top:0">Players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
+    <div class="note" id="startnote"></div></div>
+  <div class="card"><h2>Players</h2><div id="mlist"></div>
+    ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
+  ${adm?`<button data-act="start" id="startbtn">Start tournament</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete tournament</button></div>`
+       :'<div class="card" style="text-align:center;color:var(--mu)">Waiting for the organizer to start…</div>'}`;
+}
+function renderMembers(){
+  const el=$('mlist');if(!el)return;
+  const adm=isAdmin();
+  el.innerHTML=M.map(m=>`<div class="mrow"><div>${esc(m.name)}${m.profile_id&&m.profile_id===T.admin_id?'<span class="badge">organizer</span>':''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div>${adm&&m.profile_id!==T.admin_id?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''}</div>`).join('');
+}
+const VALID=[4,8,12,16];
+function updateNote(){
+  const n=M.length,ok=VALID.includes(n);
+  if($('pcount'))$('pcount').textContent=n;
+  const el=$('startnote');if(!el)return;
+  if(ok){const p=payouts(n,+T.fee||0);el.textContent=`${n/2} rounds · pool ${$$(n*(+T.fee||0))} · payouts ${p.map((x,i)=>'#'+(i+1)+' '+$$(x)).join(', ')}`}
+  else{const nx=VALID.find(v=>v>=n);el.textContent=nx?`Need 4, 8, 12 or 16 players. Add ${nx-n} more to reach ${nx}.`:'Max 16 players. Remove '+(n-16)+'.'}
+  const b=$('startbtn');if(b)b.disabled=!ok;
+}
+
+function playHTML(){
+  const adm=isAdmin();
+  return `<div class="top"><h1>Tournament</h1><button class="sec" data-act="home">Home</button></div>
+  <div class="sub" id="pool"></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="card" id="round"></div>
+  <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
+    <div class="note">Ranked by total points scored, then point differential. Ties aren't split automatically, so settle them by hand.</div></div>
+  ${adm?`<button id="fin" class="hide" data-act="finish" style="margin-bottom:10px">Finish &amp; lock results</button><button class="sec" data-act="reshuf">Reshuffle teams (before scoring)</button>
+  <div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete tournament</button></div>`
+  :'<div class="note" style="text-align:center">Scores update live as the organizer enters them.</div>'}`;
+}
+function renderTabs(){
+  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${r.every(filled)?'done':''}" data-act="tab" data-r="${i}">Round ${i+1}</button>`).join('');
+}
+function renderRound(){
+  const adm=isAdmin();
+  const box=(m,j,s)=>adm?`<input type="number" inputmode="numeric" min="0" data-m="${j}" data-s="${s}" value="${esc(m[s])}" placeholder="0">`:`<div class="sc">${m[s]===''?'–':esc(m[s])}</div>`;
+  $('round').innerHTML=`<h2>Round ${cur+1} of ${T.rounds.length}</h2>`+T.rounds[cur].map((m,j)=>`
+    <div class="match"><div class="t">${team(m.a)}</div>${box(m,j,'sa')}
     <div class="vs">vs</div>
-    <div class="t">${team(m.b)}</div><input type="number" inputmode="numeric" min="0" data-m="${j}" data-s="sb" value="${m.sb}" placeholder="0"></div>`).join('');
-  $('round').querySelectorAll('input').forEach(inp=>inp.oninput=()=>{
-    S.rounds[cur][+inp.dataset.m][inp.dataset.s]=inp.value;save();renderStand();
-    const d=S.rounds.map(r=>r.every(filled));
-    $('tabs').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('done',d[i]));
-  });
-  $('pool').textContent=`Entry ${$$(S.fee)} × ${S.names.length} players = ${$$(S.fee*S.names.length)} pool`;
-  renderStand();
+    <div class="t">${team(m.b)}</div>${box(m,j,'sb')}</div>`).join('');
 }
 function renderStand(){
-  const st=standings(),p=payouts(S.names.length,S.fee);
-  const done=S.rounds.every(r=>r.every(filled));
-  $('fin').classList.toggle('hide',!done);
+  const st=standings(),p=payouts(T.players.length,+T.fee||0);
+  const done=T.rounds.every(r=>r.every(filled));
+  if($('fin'))$('fin').classList.toggle('hide',!done);
   $('sh').textContent=done?'Final standings':'Standings (projected payouts)';
-  $('st').innerHTML='<tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th><th>Payout</th></tr>'+st.map((x,i)=>`<tr><td>${i+1}</td><td>${x.n}</td><td>${x.pf}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td><td class="pay">${i<p.length?$$(p[i]):''}</td></tr>`).join('');
+  $('st').innerHTML='<tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th><th>Payout</th></tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.pf}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td><td class="pay">${i<p.length?$$(p[i]):''}</td></tr>`).join('');
+  $('pool').textContent=`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`;
 }
-const HK='pb_history';
-function loadH(){try{return JSON.parse(localStorage.getItem(HK))||[]}catch(e){return[]}}
-function saveH(h){try{localStorage.setItem(HK,JSON.stringify(h))}catch(e){}}
-const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function renderHist(){
-  const h=loadH();
-  if(!h.length){$('hist').innerHTML='';return}
-  const net={};
-  h.forEach(t=>t.res.forEach(x=>{const o=net[x.n]=net[x.n]||{n:x.n,g:0,won:0};o.g++;o.won+=x.pay-t.fee}));
-  const tot=Object.values(net).sort((a,b)=>b.won-a.won);
-  const fmt=v=>(v>0?'+':v<0?'−':'')+$$(Math.abs(v));
-  $('hist').innerHTML=`<div class="card" style="margin-top:18px"><h2>All-time net (payouts − entry fees)</h2><table><tr><th>Player</th><th></th><th>Played</th><th>Net</th></tr>`+
-    tot.map(o=>`<tr><td>${esc(o.n)}</td><td></td><td>${o.g}</td><td class="${o.won>0?'pay':''}">${fmt(o.won)}</td></tr>`).join('')+`</table></div>
-    <div class="card"><h2>Past tournaments</h2>`+
-    h.map((t,i)=>{
-      const pool=t.fee*t.res.length;
-      return `<details><summary>${new Date(t.date).toLocaleDateString()} · 🏆 ${esc(t.res[0].n)} <span>${t.res.length} players · ${$$(pool)} pool</span></summary>
-      <table><tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th><th>Paid</th></tr>`+
-      t.res.map((x,j)=>`<tr><td>${j+1}</td><td>${esc(x.n)}</td><td>${x.pf}</td><td>${x.d>0?'+':''}${x.d}</td><td class="pay">${x.pay?$$(x.pay):''}</td></tr>`).join('')+
-      `</table><button class="del" data-del="${i}">Delete entry</button></details>`}).reverse().join('')+`</div>`;
+function renderPlayBody(){
+  if(cur>=T.rounds.length)cur=0;
+  renderTabs();renderRound();renderStand();
 }
-$('hist').onclick=e=>{
-  const b=e.target,d=b.dataset.del;
-  if(d!==undefined)twoTap(b,'Tap again to delete',()=>{const h=loadH();h.splice(+d,1);saveH(h);renderHist()});
+function doneHTML(){
+  const r=T.result||[],pool=+T.fee*r.length;
+  return `<div class="top"><h1>Final results</h1><button class="sec" data-act="home">Home</button></div>
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${$$(pool)} pool · entry ${$$(+T.fee)}</div>
+  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th><th>Paid</th></tr>`+
+  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.pf}</td><td>${x.d>0?'+':''}${x.d}</td><td class="pay">${x.pay?$$(x.pay):''}</td></tr>`).join('')+
+  `</table></div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
+}
+
+/* ---------- data ---------- */
+async function loadMine(){
+  const {data}=await sb.from('tournaments').select('id,code,status,created_at,fee,result,admin_id').order('created_at',{ascending:false}).limit(100);
+  mine=data||[];
+}
+async function loadMembers(){
+  const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
+  M=data||[];
+}
+function viewFor(s){return s==='lobby'?'lobby':s==='playing'?'play':'done'}
+function subscribe(){
+  unsubscribe();
+  let tm=null;const sched=()=>{clearTimeout(tm);tm=setTimeout(refresh,300)};
+  chan=sb.channel('t-'+T.id)
+    .on('postgres_changes',{event:'*',schema:'scrambler',table:'tournaments',filter:'id=eq.'+T.id},sched)
+    .on('postgres_changes',{event:'*',schema:'scrambler',table:'members'},sched)
+    .subscribe();
+  poll=setInterval(()=>{if(!document.hidden)refresh()},8000);
+}
+function unsubscribe(){
+  if(chan){sb.removeChannel(chan);chan=null}
+  if(poll){clearInterval(poll);poll=null}
+}
+async function openT(id){
+  const {data,error}=await sb.from('tournaments').select('*').eq('id',id).maybeSingle();
+  if(error||!data)return false;
+  T=data;await loadMembers();cur=0;
+  ls.set('pb_last',id);
+  view=viewFor(T.status);
+  if(view==='play'){const i=T.rounds.findIndex(r=>!r.every(filled));cur=i<0?0:i}
+  render();subscribe();window.scrollTo(0,0);
+  return true;
+}
+async function goHome(){
+  unsubscribe();T=null;M=[];view='home';ls.del('pb_last');
+  await loadMine();render();window.scrollTo(0,0);
+}
+async function refresh(){
+  if(!T||busy)return;busy=true;
+  try{
+    const {data,error}=await sb.from('tournaments').select('*').eq('id',T.id).maybeSingle();
+    if(error)return;
+    if(!data){toast("You're no longer in this tournament");await goHome();return}
+    const wasAdmin=isAdmin(),was=T.status;
+    if(wasAdmin&&was==='playing'&&data.status==='playing')data.rounds=T.rounds; // organizer's screen is the source of truth
+    T=data;await loadMembers();
+    const v=viewFor(T.status);
+    if(v!==view||wasAdmin!==isAdmin()){view=v;render();return}
+    if(view==='lobby'){renderMembers();updateNote()}
+    else if(view==='play'){if(isAdmin()){renderTabs();renderStand()}else renderPlayBody()}
+  }finally{busy=false}
+}
+function queueSave(){
+  clearTimeout(saveT);
+  saveT=setTimeout(async()=>{saveT=null;try{await rpc('save_rounds',{p_tid:T.id,p_rounds:T.rounds})}catch(e){}},500);
+}
+
+/* ---------- actions ---------- */
+const actions={
+  mode(el){authMode=el.dataset.m;render();$('un')?.focus()},
+  async auth(){
+    const u=($('un').value||'').trim(),p=$('pin').value||'';
+    if(u.length<2)return toast('Enter a username (2–20 characters)');
+    if(!/^\d{4,6}$/.test(p))return toast('PIN must be 4 to 6 digits');
+    let r;
+    if(authMode==='new'){
+      if(p!==$('pin2').value)return toast("PINs don't match");
+      r=await rpc('create_account',{p_username:u,p_pin:p});
+    }else r=await rpc('sign_in',{p_username:u,p_pin:p});
+    if(!r||!r.ok)return toast(r?.error||'Could not sign in');
+    prof={id:r.profile_id,username:r.username};ls.set('pb_user',r.username);
+    await loadMine();view='home';render();window.scrollTo(0,0);
+  },
+  async signout(){
+    try{await rpc('sign_out')}catch(e){return}
+    unsubscribe();prof=null;T=null;M=[];mine=[];ls.del('pb_last');authMode='in';view='auth';render();
+  },
+  async create(){
+    const r=await rpc('create_tournament');
+    await openT(r.id);
+  },
+  async join(){
+    const c=cleanCode($('code')?.value);
+    if(c.length<5){toast('Enter the 5-character code');return}
+    const id=await rpc('join_tournament',{p_code:c});
+    pendingCode='';history.replaceState(null,'',location.pathname);
+    await openT(id);
+  },
+  noinvite(){pendingCode='';history.replaceState(null,'',location.pathname);render()},
+  async open(el){if(!await openT(el.dataset.id))toast('Could not open that tournament')},
+  home(){return goHome()},
+  async share(){
+    const url=link();
+    if(navigator.share){try{await navigator.share({title:'Pickleball Scrambler',text:'Join my pickleball tournament! Code '+T.code,url});return}catch(e){if(e.name==='AbortError')return}}
+    try{await navigator.clipboard.writeText(url);toast('Link copied')}catch(e){$('lnk').select();toast('Copy the link shown above')}
+  },
+  async addguest(){
+    const v=($('gname').value||'').trim();if(!v)return;
+    await rpc('add_guest',{p_tid:T.id,p_name:v});
+    $('gname').value='';await refresh();
+  },
+  async rm(el){await rpc('remove_member',{p_member_id:el.dataset.id});await refresh()},
+  async start(){
+    if(!VALID.includes(M.length)){toast('Need 4, 8, 12 or 16 players');return}
+    const players=M.map(m=>m.name),pids=M.map(m=>m.profile_id),rounds=genSchedule(players.length);
+    if(!rounds){toast('Could not build a valid schedule. Try again.');return}
+    await rpc('start_tournament',{p_tid:T.id,p_players:players,p_pids:pids,p_rounds:rounds});
+    await refresh();
+  },
+  tab(el){cur=+el.dataset.r;renderTabs();renderRound()},
+  async reshuf(){
+    if(T.rounds.some(r=>r.some(m=>m.sa!==''||m.sb!=='')))return toast('Scores are already entered, so teams are locked.');
+    const r=genSchedule(T.players.length);if(!r)return;
+    T.rounds=r;await rpc('save_rounds',{p_tid:T.id,p_rounds:r});renderPlayBody();
+  },
+  async finish(){
+    clearTimeout(saveT);saveT=null;
+    const st=standings(),p=payouts(T.players.length,+T.fee||0);
+    const result=st.map((x,i)=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:i<p.length?p[i]:0}));
+    await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
+    await refresh();
+  },
+  del(el){twoTap(el,'Tap again to delete',async()=>{
+    try{await rpc('delete_tournament',{p_tid:T.id});await goHome()}catch(e){}
+  })}
 };
-$('fin').onclick=()=>{
-  const st=standings(),p=payouts(S.names.length,S.fee),h=loadH();
-  h.push({date:new Date().toISOString(),fee:S.fee,res:st.map((x,i)=>({n:x.n,pf:x.pf,d:x.pf-x.pa,pay:i<p.length?p[i]:0}))});
-  saveH(h);S=null;try{localStorage.removeItem(KEY)}catch(e){}show();window.scrollTo(0,0);
-};
-function show(){
-  $('setup').classList.toggle('hide',!!S);$('play').classList.toggle('hide',!S);
-  if(S)render();else renderHist();
-}
-S=load();buildNames();show();
+document.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-act]');if(!el||!actions[el.dataset.act])return;
+  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode'].includes(act);
+  if(lock)el.disabled=true;
+  try{await actions[act](el)}catch(err){console.error(err)}
+  if(lock&&el.isConnected)el.disabled=false;
+  if(act==='start')updateNote();
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.id==='code')t.value=cleanCode(t.value);
+  else if(t.id==='pin'||t.id==='pin2')t.value=t.value.replace(/\D/g,'').slice(0,6);
+  else if(t.dataset.m!==undefined&&isAdmin()&&T){
+    T.rounds[cur][+t.dataset.m][t.dataset.s]=t.value;
+    queueSave();renderTabs();renderStand();
+  }
+});
+document.addEventListener('change',async e=>{
+  if(e.target.id==='fee'&&isAdmin()){
+    const v=Math.max(0,Math.min(1000,+e.target.value||0));
+    T.fee=v;updateNote();
+    try{await rpc('set_fee',{p_tid:T.id,p_fee:v})}catch(err){}
+  }
+});
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const id=e.target.id;
+  if(id==='gname')actions.addguest();
+  else if(id==='code')actions.join();
+  else if(id==='un'||id==='pin'||id==='pin2')actions.auth();
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
+
+/* ---------- boot ---------- */
+function fatal(msg){$('app').innerHTML=TITLE+`<div class="card"><h2>Setup needed</h2><div>${msg}</div></div>`}
+(async function init(){
+  if(SUPABASE_URL.startsWith('YOUR_')||SUPABASE_KEY.startsWith('YOUR_')){
+    fatal('Paste your Supabase project URL and anon key at the top of the script in <code>index.html</code>, and run <code>scrambler-schema.sql</code> in the Supabase SQL editor.');return;
+  }
+  if(!window.supabase){fatal('Could not load the Supabase library. Check your connection and reload.');return}
+  sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{db:{schema:'scrambler'},auth:{persistSession:true,autoRefreshToken:true}});
+  let {data:{session}}=await sb.auth.getSession();
+  if(!session){
+    const r=await sb.auth.signInAnonymously();
+    if(r.error){fatal('Anonymous sign-in failed: '+esc(r.error.message)+'. Enable "Allow anonymous sign-ins" in Supabase Authentication settings.');return}
+    session=r.data.session;
+  }
+  pendingCode=cleanCode(new URLSearchParams(location.search).get('t'));
+  let w=null;
+  try{w=await rpc('whoami')}catch(e){fatal('Could not reach the scrambler schema. Did you run <code>scrambler-schema.sql</code> and expose the <code>scrambler</code> schema?');return}
+  if(!w){view='auth';render();return}
+  prof={id:w.profile_id,username:w.username};
+  const last=ls.get('pb_last');
+  if(last&&!pendingCode){
+    if(await openT(last)&&T.status!=='done')return;
+    if(T){unsubscribe();T=null}
+  }
+  await loadMine();view='home';render();
+})();
 </script></body></html>
