@@ -28,13 +28,17 @@ input,select{width:100%;font:inherit;padding:10px;border:1px solid var(--bd);bor
 button{font:inherit;font-weight:600;padding:12px 16px;border:0;border-radius:10px;background:var(--ac);color:#fff;cursor:pointer;width:100%}
 button:disabled{opacity:.5}
 button.sec{background:var(--ac2);color:var(--ac)}
+button.sm{width:auto;padding:6px 12px;font-size:13px}
 .tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:12px}
 .tabs button{width:auto;flex:none;padding:8px 14px;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
 .tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .tabs button.done::after{content:" ✓"}
 .match{display:grid;grid-template-columns:1fr 64px;gap:8px 10px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--bd)}
-.match:last-child{border:0;margin:0;padding:0}
+.match:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
+.match.mine{background:var(--ac2);border-radius:10px;padding:10px;border-bottom:0}
 .match .vs{grid-column:1/-1;text-align:center;color:var(--mu);font-size:12px;margin:-2px 0}
+.match .foot{grid-column:1/-1;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mu)}
+.match .foot button{width:auto;padding:8px 14px;font-size:14px}
 .match input{text-align:center;font-weight:700;font-size:18px}
 .sc{text-align:center;font-weight:700;font-size:18px}
 .t{font-weight:600}
@@ -53,9 +57,13 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .del{background:none;color:var(--mu);width:auto;padding:4px 0;font-size:12px;font-weight:500;text-decoration:underline}
 .code{font-size:34px;font-weight:800;letter-spacing:8px;text-align:center;padding:4px 0 8px;color:var(--ac)}
 .lnk{display:flex;gap:8px}.lnk input{font-size:13px}.lnk button{width:auto;flex:none;padding:10px 14px}
-.mrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--bd)}
-.mrow:first-child{border:0}
+.mrow{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--bd)}
+.mrow.first{border-top:0}
+.mrow .acts{display:flex;align-items:center;gap:10px}
 .badge{font-size:11px;background:var(--ac2);color:var(--ac);border-radius:6px;padding:2px 6px;margin-left:6px;font-weight:600}
+.grp{font-size:12px;color:var(--mu);font-weight:600;margin:10px 0 2px;text-transform:uppercase;letter-spacing:.5px}
+.grp:first-child{margin-top:0}
+.banner{background:var(--ac2);color:var(--ac);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-weight:600;text-align:center}
 .tl{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--bd);cursor:pointer}
 .tl:first-of-type{border:0}
 .tl span{color:var(--mu);font-size:13px}
@@ -78,7 +86,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,saveT=null,busy=false,pendingCode='',authMode='in';
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false;
 
 /* ---------- helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
@@ -99,6 +107,13 @@ const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(
 const cleanCode=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5);
 const isAdmin=()=>!!(T&&prof&&T.admin_id===prof.id);
 const filled=m=>m.sa!==''&&m.sb!=='';
+const myIdx=()=>(T&&T.pids&&prof)?T.pids.indexOf(prof.id):-1;
+const myMember=()=>M.find(m=>m.profile_id&&prof&&m.profile_id===prof.id);
+const approved=()=>M.filter(m=>m.approved);
+const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
+const canEdit=(ri,m)=>T.status==='playing'&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
+const allIn=r=>r.every(filled);
+const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn);
 
 /* ---------- payouts + schedule ---------- */
 function weights(k){
@@ -106,41 +121,45 @@ function weights(k){
   return Array.from({length:k},(_,i)=>Math.pow(k-i,1.4));
 }
 function payouts(n,fee){
-  const k=n/2,w=weights(k),sum=w.reduce((a,b)=>a+b,0),pool=n*fee;
+  const k=Math.floor(n/2),w=weights(k),sum=w.reduce((a,b)=>a+b,0),pool=n*fee;
   const p=w.map(x=>Math.round(pool*x/sum));
   p[0]+=pool-p.reduce((a,b)=>a+b,0);
   return p;
 }
-function genSchedule(n){
-  const R=n/2;
+function genSchedule(n,R){
+  const b=n%4;               // players sitting out each round
   for(let limit=2;limit<=4;limit++){
-    for(let attempt=0;attempt<800;attempt++){
-      const partner=new Set(),opp={},rounds=[];let ok=true;
+    const tries=limit==2?400:300;
+    for(let attempt=0;attempt<tries;attempt++){
+      const partner=new Set(),opp={},byeCnt=Array(n).fill(0),rounds=[];let ok=true;
       for(let r=0;r<R&&ok;r++){
         let found=null;
-        for(let t=0;t<300&&!found;t++){
-          const pool=shuf([...Array(n).keys()]),teams=[];let bad=false;
+        for(let t=0;t<150&&!found;t++){
+          let byes=[];
+          if(b>0)byes=shuf([...Array(n).keys()]).sort((x,y)=>byeCnt[x]-byeCnt[y]).slice(0,b);
+          const pool=shuf([...Array(n).keys()].filter(i=>!byes.includes(i))),teams=[];let bad=false;
           while(pool.length){
             const a=pool.shift();
-            const idx=pool.findIndex(b=>!partner.has(a+'-'+b)&&!partner.has(b+'-'+a));
+            const idx=pool.findIndex(c=>!partner.has(a+'-'+c)&&!partner.has(c+'-'+a));
             if(idx<0){bad=true;break}
             teams.push([a,pool.splice(idx,1)[0]]);
           }
           if(bad)continue;
           const ts=shuf(teams),matches=[],cnt={};let good=true;
           for(let i=0;i<ts.length;i+=2){
-            for(const a of ts[i])for(const b of ts[i+1]){
-              const k1=a+'-'+b;
+            for(const x of ts[i])for(const y of ts[i+1]){
+              const k1=x+'-'+y;
               if(((opp[k1]||0)+(cnt[k1]||0))>=limit)good=false;
-              cnt[k1]=(cnt[k1]||0)+1;cnt[b+'-'+a]=(cnt[b+'-'+a]||0)+1;
+              cnt[k1]=(cnt[k1]||0)+1;cnt[y+'-'+x]=(cnt[y+'-'+x]||0)+1;
             }
             matches.push({a:ts[i],b:ts[i+1],sa:'',sb:''});
           }
-          if(good)found={matches,teams,cnt};
+          if(good)found={matches,teams,cnt,byes};
         }
         if(!found){ok=false;break}
-        found.teams.forEach(([a,b])=>{partner.add(a+'-'+b);partner.add(b+'-'+a)});
+        found.teams.forEach(([x,y])=>{partner.add(x+'-'+y);partner.add(y+'-'+x)});
         for(const k in found.cnt)opp[k]=(opp[k]||0)+found.cnt[k];
+        found.byes.forEach(i=>byeCnt[i]++);
         rounds.push(found.matches);
       }
       if(ok)return rounds;
@@ -148,12 +167,30 @@ function genSchedule(n){
   }
   return null;
 }
+
+/* Rounds that give every player the same number of games (sit-outs rotate evenly). */
+const gamesEach=(n,r)=>r*(n-n%4)/n;
+function roundChoices(n){
+  const b=n%4,out=[];
+  for(let r=2;r<=n;r++){
+    if(b&&(b*r)%n)continue;
+    if(gamesEach(n,r)>n-1)continue;   // can't have more distinct partners than other players
+    out.push(r);
+  }
+  const d=defaultRounds(n);
+  return out.filter(r=>r<=Math.max(7,d));
+}
+function defaultRounds(n){
+  if(n%4===0)return n===4?3:n/2;
+  for(let r=3;r<=n;r++)if((n%4*r)%n===0)return r;
+  return n;
+}
 function standings(){
-  const s=T.players.map((n,i)=>({i,n,pf:0,pa:0}));
+  const s=T.players.map((n,i)=>({i,n,pf:0,pa:0,g:0}));
   T.rounds.forEach(r=>r.forEach(m=>{
     if(!filled(m))return;
-    m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb});
-    m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa});
+    m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb;s[i].g++});
+    m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa;s[i].g++});
   }));
   return s.sort((x,y)=>y.pf-x.pf||(y.pf-y.pa)-(x.pf-x.pa));
 }
@@ -214,7 +251,7 @@ function homeHTML(){
       <div style="text-align:center;margin-top:8px"><button class="del" data-act="noinvite">Not this one? Go back</button></div></div>`;
   }else{
     h+=`<div class="card"><button data-act="create">Start a new tournament</button>
-      <div class="note">You'll be the organizer: you set the entry fee, enter scores and start the games.</div></div>
+      <div class="note">You'll be the director: you approve players, start each round, and everyone enters their own scores.</div></div>
       <div class="card"><h2>Join with a code</h2>
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
       <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
@@ -227,78 +264,141 @@ function homeHTML(){
         const i=(t.result||[]).findIndex(x=>x.p===prof.id);
         if(i<0)st=`🏆 ${esc(t.result?.[0]?.n||'')}`;
         else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
-      }else st=t.status==='playing'?'In progress':'Lobby';
-      return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${new Date(t.created_at).toLocaleDateString()}</b> <span>· ${esc(t.code)}${t.admin_id===prof.id?' · organizer':''}</span></div><span>${st} ›</span></div>`;
+      }else st=t.status==='playing'?`Round ${t.current_round}`:'Lobby';
+      return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${new Date(t.created_at).toLocaleDateString()}</b> <span>· ${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span></div><span>${st} ›</span></div>`;
     }).join('')+'</div>';
   }
   return h;
 }
 
+/* ----- lobby ----- */
 function lobbyHTML(){
   const adm=isAdmin();
   return `<div class="top"><h1>Lobby</h1><button class="sec" data-act="home">Home</button></div>
-  <div class="sub">${adm?'You are the organizer.':'Waiting for everyone to join.'}</div>
+  <div class="sub">${adm?'You are the director. Approve players once they have paid and arrived.':'Waiting for everyone to arrive.'}</div>
+  ${adm?'':'<div class="banner" id="banner"></div>'}
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
     <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div>
-    <div class="note">Anyone with the link can join until the tournament starts.</div></div>
+    <div class="note">Anyone with the link can join the lobby until round 1 starts.</div></div>
   <div class="card"><div class="row">
     <div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>
-    <div><label style="margin-top:0">Players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
-    <div class="note" id="startnote"></div></div>
-  <div class="card"><h2>Players</h2><div id="mlist"></div>
+    <div><label style="margin-top:0">Approved players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
+    <div id="rbox"></div><div class="note" id="startnote"></div></div>
+  <div class="card"><div id="mlist"></div>
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
-  ${adm?`<button data-act="start" id="startbtn">Start tournament</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete tournament</button></div>`
-       :'<div class="card" style="text-align:center;color:var(--mu)">Waiting for the organizer to start…</div>'}`;
+  ${adm?`<button data-act="start" id="startbtn">Start round 1</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
 }
 function renderMembers(){
   const el=$('mlist');if(!el)return;
   const adm=isAdmin();
-  el.innerHTML=M.map(m=>`<div class="mrow"><div>${esc(m.name)}${m.profile_id&&m.profile_id===T.admin_id?'<span class="badge">organizer</span>':''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div>${adm&&m.profile_id!==T.admin_id?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''}</div>`).join('');
+  const row=(m,first)=>{
+    const isDir=m.profile_id&&m.profile_id===T.admin_id;
+    let acts='';
+    if(adm){
+      if(!m.approved)acts=`<button class="sec sm" data-act="approve" data-id="${m.id}">Approve</button><button class="del" data-act="rm" data-id="${m.id}">remove</button>`;
+      else if(!isDir)acts=`<button class="del" data-act="unapprove" data-id="${m.id}">revoke</button>`;
+    }
+    return `<div class="mrow${first?' first':''}"><div>${esc(m.name)}${isDir?'<span class="badge">director</span>':''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${acts}</div></div>`;
+  };
+  const wait=M.filter(m=>!m.approved),ok=approved();
+  el.innerHTML=(wait.length?`<div class="grp">Waiting for approval (${wait.length})</div>`+wait.map((m,i)=>row(m,i===0)).join(''):'')
+    +`<div class="grp">Approved (${ok.length})</div>`+(ok.length?ok.map((m,i)=>row(m,i===0)).join(''):'<div class="note">Nobody yet.</div>');
 }
-const VALID=[4,8,12,16];
+const validN=n=>n>=4&&n<=16;
+let chosenR=0;
+const roundsFor=n=>roundChoices(n).includes(chosenR)?chosenR:defaultRounds(n);
 function updateNote(){
-  const n=M.length,ok=VALID.includes(n);
+  const n=approved().length,w=M.length-n,ok=validN(n),adm=isAdmin();
   if($('pcount'))$('pcount').textContent=n;
-  const el=$('startnote');if(!el)return;
-  if(ok){const p=payouts(n,+T.fee||0);el.textContent=`${n/2} rounds · pool ${$$(n*(+T.fee||0))} · payouts ${p.map((x,i)=>'#'+(i+1)+' '+$$(x)).join(', ')}`}
-  else{const nx=VALID.find(v=>v>=n);el.textContent=nx?`Need 4, 8, 12 or 16 players. Add ${nx-n} more to reach ${nx}.`:'Max 16 players. Remove '+(n-16)+'.'}
+  const rb=$('rbox');
+  if(rb){
+    if(adm&&ok){
+      if(document.activeElement?.id!=='rsel'){
+        const o=roundChoices(n),r=roundsFor(n);
+        rb.innerHTML=`<label>Rounds</label><select id="rsel">${o.map(x=>`<option value="${x}"${x===r?' selected':''}>${x} rounds · ${gamesEach(n,x)} games each</option>`).join('')}</select>`;
+      }
+    }else rb.innerHTML='';
+  }
+  const el=$('startnote');
+  if(el){
+    if(!adm)el.textContent='';
+    else if(ok){
+      const r=roundsFor(n),b=n%4,p=payouts(n,+T.fee||0);
+      let t=`${r} rounds · everyone plays ${gamesEach(n,r)} games${b?` · ${b} sit out each round`:''} · pool ${$$(n*(+T.fee||0))} · payouts ${p.map((x,i)=>'#'+(i+1)+' '+$$(x)).join(', ')}.`;
+      if(r>7){const alt=[n-1,n+1].filter(m=>validN(m)&&defaultRounds(m)<=7);t+=` That's a long event, because everyone has to play the same number of games.`+(alt.length?` ${alt.join(' or ')} players would be shorter.`:'')}
+      if(w)t+=` ${w} still waiting will watch as spectators.`;
+      el.textContent=t;
+    }else el.textContent=n<4?`Need at least 4 approved players (${4-n} more).`:'Max 16 players. Revoke '+(n-16)+'.';
+  }
   const b=$('startbtn');if(b)b.disabled=!ok;
+  const bn=$('banner');
+  if(bn){const me=myMember();bn.textContent=me&&me.approved?"You're approved ✓ Waiting for the director to start round 1.":`Waiting for the director to approve you. Pay the ${$$(+T.fee)} entry fee to the director.`}
 }
 
+/* ----- play ----- */
 function playHTML(){
-  const adm=isAdmin();
+  const inGame=myIdx()>=0;
   return `<div class="top"><h1>Tournament</h1><button class="sec" data-act="home">Home</button></div>
   <div class="sub" id="pool"></div>
+  ${inGame?'':'<div class="banner">You are watching this tournament.</div>'}
   <div class="tabs" id="tabs"></div>
   <div class="card" id="round"></div>
+  <div class="card" id="ctl"></div>
   <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
     <div class="note">Ranked by total points scored, then point differential. Ties aren't split automatically, so settle them by hand.</div></div>
-  ${adm?`<button id="fin" class="hide" data-act="finish" style="margin-bottom:10px">Finish &amp; lock results</button><button class="sec" data-act="reshuf">Reshuffle teams (before scoring)</button>
-  <div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete tournament</button></div>`
-  :'<div class="note" style="text-align:center">Scores update live as the organizer enters them.</div>'}`;
+  ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
 }
 function renderTabs(){
-  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${r.every(filled)?'done':''}" data-act="tab" data-r="${i}">Round ${i+1}</button>`).join('');
+  $('tabs').innerHTML=T.rounds.slice(0,T.current_round).map((r,i)=>`<button class="${i==cur?'on ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">Round ${i+1}</button>`).join('');
+}
+function byesOf(ri){const on=new Set();T.rounds[ri].forEach(m=>[...m.a,...m.b].forEach(i=>on.add(i)));return T.players.map((_,i)=>i).filter(i=>!on.has(i))}
+function byeHTML(ri){
+  const b=byesOf(ri);if(!b.length)return '';
+  const mineBye=b.includes(myIdx());
+  return (mineBye?`<div class="banner" style="margin-top:12px">☕ You're sitting out this round</div>`:'')+`<div class="note" style="margin-top:12px">Sitting out: ${b.map(i=>esc(T.players[i])).join(', ')}</div>`;
 }
 function renderRound(){
-  const adm=isAdmin();
-  const box=(m,j,s)=>adm?`<input type="number" inputmode="numeric" min="0" data-m="${j}" data-s="${s}" value="${esc(m[s])}" placeholder="0">`:`<div class="sc">${m[s]===''?'–':esc(m[s])}</div>`;
-  $('round').innerHTML=`<h2>Round ${cur+1} of ${T.rounds.length}</h2>`+T.rounds[cur].map((m,j)=>`
-    <div class="match"><div class="t">${team(m.a)}</div>${box(m,j,'sa')}
-    <div class="vs">vs</div>
-    <div class="t">${team(m.b)}</div>${box(m,j,'sb')}</div>`).join('');
+  needRound=false;
+  const ri=cur,R=T.rounds[ri];
+  const n=R.filter(filled).length;
+  $('round').innerHTML=`<h2>Round ${ri+1} of ${T.rounds.length} <span class="note" style="font-weight:400">· ${n} of ${R.length} scores in</span></h2>`+R.map((m,j)=>{
+    const edit=canEdit(ri,m),mineM=inMatch(m);
+    const val=s=>esc(drafts[`${ri}-${j}-${s}`]??m[s]);
+    const box=s=>edit?`<input type="number" inputmode="numeric" min="0" max="999" data-m="${j}" data-s="${s}" value="${val(s)}" placeholder="0">`:`<div class="sc">${m[s]===''?'–':esc(m[s])}</div>`;
+    let foot='';
+    if(edit)foot=`<div class="foot"><button data-act="submit" data-m="${j}">${filled(m)?'Update score':'Submit score'}</button>${filled(m)&&m.by?`<span>Entered by ${esc(m.by)}</span>`:''}</div>`;
+    else if(filled(m)&&m.by)foot=`<div class="foot"><span>Final · entered by ${esc(m.by)}</span></div>`;
+    else if(!filled(m)&&ri+1===T.current_round&&T.status==='playing')foot=`<div class="foot"><span>Waiting for score</span></div>`;
+    return `<div class="match${mineM?' mine':''}"><div class="t">${team(m.a)}</div>${box('sa')}
+    <div class="vs">${mineM?'your game · ':''}vs</div>
+    <div class="t">${team(m.b)}</div>${box('sb')}${foot}</div>`;
+  }).join('')+byeHTML(ri);
+}
+function renderCtl(){
+  const el=$('ctl');if(!el)return;
+  const cr=T.current_round,R=T.rounds[cr-1],total=T.rounds.length,done=allIn(R),last=cr===total;
+  const waiting=R.map(m=>filled(m)?null:`${team(m.a)} vs ${team(m.b)}`).filter(Boolean);
+  let h=`<h2>Round ${cr} status</h2><div>${R.filter(filled).length} of ${R.length} games reported</div>`;
+  if(waiting.length)h+=`<div class="note">Still playing: ${waiting.join(' · ')}</div>`;
+  if(isAdmin()){
+    h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'Finish tournament':'Start round '+(cr+1)}</button>`;
+    if(!done)h+=`<div class="note">${last?'Finish':'Next round'} unlocks when every game has a score. You can enter or fix any score yourself.</div>`;
+  }else{
+    h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':'Round complete. Waiting for the director to start round '+(cr+1)+'.'):'Enter your score as soon as your game ends.'}</div>`;
+  }
+  el.innerHTML=h;
 }
 function renderStand(){
   const st=standings(),p=payouts(T.players.length,+T.fee||0);
-  const done=T.rounds.every(r=>r.every(filled));
-  if($('fin'))$('fin').classList.toggle('hide',!done);
-  $('sh').textContent=done?'Final standings':'Standings (projected payouts)';
-  $('st').innerHTML='<tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th><th>Payout</th></tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.pf}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td><td class="pay">${i<p.length?$$(p[i]):''}</td></tr>`).join('');
+  const over=tournamentOver();
+  $('sh').textContent=over?'Final standings':'Standings (projected payouts)';
+  $('st').innerHTML='<tr><th>#</th><th>Player</th><th>G</th><th>Pts</th><th>+/−</th><th>Payout</th></tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.g}</td><td>${x.pf}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td><td class="pay">${i<p.length?$$(p[i]):''}</td></tr>`).join('');
   $('pool').textContent=`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`;
 }
 function renderPlayBody(){
-  if(cur>=T.rounds.length)cur=0;
-  renderTabs();renderRound();renderStand();
+  if(cur>=T.current_round)cur=T.current_round-1;
+  if(cur<0)cur=0;
+  renderTabs();renderRound();renderCtl();renderStand();
 }
 function doneHTML(){
   const r=T.result||[],pool=+T.fee*r.length;
@@ -311,7 +411,7 @@ function doneHTML(){
 
 /* ---------- data ---------- */
 async function loadMine(){
-  const {data}=await sb.from('tournaments').select('id,code,status,created_at,fee,result,admin_id').order('created_at',{ascending:false}).limit(100);
+  const {data}=await sb.from('tournaments').select('id,code,status,current_round,created_at,fee,result,admin_id').order('created_at',{ascending:false}).limit(100);
   mine=data||[];
 }
 async function loadMembers(){
@@ -335,10 +435,10 @@ function unsubscribe(){
 async function openT(id){
   const {data,error}=await sb.from('tournaments').select('*').eq('id',id).maybeSingle();
   if(error||!data)return false;
-  T=data;await loadMembers();cur=0;
+  T=data;await loadMembers();drafts={};
   ls.set('pb_last',id);
   view=viewFor(T.status);
-  if(view==='play'){const i=T.rounds.findIndex(r=>!r.every(filled));cur=i<0?0:i}
+  cur=view==='play'?T.current_round-1:0;
   render();subscribe();window.scrollTo(0,0);
   return true;
 }
@@ -346,24 +446,25 @@ async function goHome(){
   unsubscribe();T=null;M=[];view='home';ls.del('pb_last');
   await loadMine();render();window.scrollTo(0,0);
 }
+const scoreFocused=()=>{const a=document.activeElement;return !!(a&&a.dataset&&a.dataset.m!==undefined&&a.closest&&a.closest('#round'))};
 async function refresh(){
   if(!T||busy)return;busy=true;
   try{
     const {data,error}=await sb.from('tournaments').select('*').eq('id',T.id).maybeSingle();
     if(error)return;
     if(!data){toast("You're no longer in this tournament");await goHome();return}
-    const wasAdmin=isAdmin(),was=T.status;
-    if(wasAdmin&&was==='playing'&&data.status==='playing')data.rounds=T.rounds; // organizer's screen is the source of truth
+    const wasAdmin=isAdmin(),oldCR=T.current_round;
     T=data;await loadMembers();
+    if(T.current_round>oldCR&&cur>=oldCR-1){cur=T.current_round-1;drafts={}}
     const v=viewFor(T.status);
-    if(v!==view||wasAdmin!==isAdmin()){view=v;render();return}
+    if(v!==view||wasAdmin!==isAdmin()){view=v;if(v==='play')cur=Math.min(cur,T.current_round-1);render();return}
     if(view==='lobby'){renderMembers();updateNote()}
-    else if(view==='play'){if(isAdmin()){renderTabs();renderStand()}else renderPlayBody()}
+    else if(view==='play'){
+      if(cur>=T.current_round)cur=T.current_round-1;
+      renderTabs();renderCtl();renderStand();
+      if(scoreFocused())needRound=true;else renderRound();
+    }
   }finally{busy=false}
-}
-function queueSave(){
-  clearTimeout(saveT);
-  saveT=setTimeout(async()=>{saveT=null;try{await rpc('save_rounds',{p_tid:T.id,p_rounds:T.rounds})}catch(e){}},500);
 }
 
 /* ---------- actions ---------- */
@@ -410,22 +511,32 @@ const actions={
     await rpc('add_guest',{p_tid:T.id,p_name:v});
     $('gname').value='';await refresh();
   },
+  async approve(el){await rpc('set_approved',{p_member_id:el.dataset.id,p_approved:true});await refresh()},
+  async unapprove(el){await rpc('set_approved',{p_member_id:el.dataset.id,p_approved:false});await refresh()},
   async rm(el){await rpc('remove_member',{p_member_id:el.dataset.id});await refresh()},
   async start(){
-    if(!VALID.includes(M.length)){toast('Need 4, 8, 12 or 16 players');return}
-    const players=M.map(m=>m.name),pids=M.map(m=>m.profile_id),rounds=genSchedule(players.length);
+    await loadMembers();
+    const ap=approved();
+    if(!validN(ap.length)){toast('Need 4 to 16 approved players');updateNote();return}
+    toast('Building the schedule…');await new Promise(r=>setTimeout(r,60));
+    const players=ap.map(m=>m.name),pids=ap.map(m=>m.profile_id),rounds=genSchedule(players.length,roundsFor(players.length));
     if(!rounds){toast('Could not build a valid schedule. Try again.');return}
     await rpc('start_tournament',{p_tid:T.id,p_players:players,p_pids:pids,p_rounds:rounds});
     await refresh();
   },
   tab(el){cur=+el.dataset.r;renderTabs();renderRound()},
-  async reshuf(){
-    if(T.rounds.some(r=>r.some(m=>m.sa!==''||m.sb!=='')))return toast('Scores are already entered, so teams are locked.');
-    const r=genSchedule(T.players.length);if(!r)return;
-    T.rounds=r;await rpc('save_rounds',{p_tid:T.id,p_rounds:r});renderPlayBody();
+  async submit(el){
+    const j=+el.dataset.m,ri=cur;
+    const a=document.querySelector(`#round [data-m="${j}"][data-s="sa"]`),b=document.querySelector(`#round [data-m="${j}"][data-s="sb"]`);
+    const sa=(a?.value||'').trim(),sb2=(b?.value||'').trim();
+    if(!/^\d{1,3}$/.test(sa)||!/^\d{1,3}$/.test(sb2))return toast('Enter both scores');
+    await rpc('submit_score',{p_tid:T.id,p_round:ri+1,p_match:j,p_sa:sa,p_sb:sb2});
+    delete drafts[`${ri}-${j}-sa`];delete drafts[`${ri}-${j}-sb`];
+    T.rounds[ri][j]={...T.rounds[ri][j],sa:String(+sa),sb:String(+sb2),by:prof.username};
+    renderTabs();renderRound();renderCtl();renderStand();toast('Score submitted');
   },
+  async nextround(){await rpc('next_round',{p_tid:T.id});await refresh();cur=T.current_round-1;renderPlayBody();window.scrollTo(0,0)},
   async finish(){
-    clearTimeout(saveT);saveT=null;
     const st=standings(),p=payouts(T.players.length,+T.fee||0);
     const result=st.map((x,i)=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:i<p.length?p[i]:0}));
     await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
@@ -447,12 +558,13 @@ document.addEventListener('input',e=>{
   const t=e.target;
   if(t.id==='code')t.value=cleanCode(t.value);
   else if(t.id==='pin'||t.id==='pin2')t.value=t.value.replace(/\D/g,'').slice(0,6);
-  else if(t.dataset.m!==undefined&&isAdmin()&&T){
-    T.rounds[cur][+t.dataset.m][t.dataset.s]=t.value;
-    queueSave();renderTabs();renderStand();
-  }
+  else if(t.dataset&&t.dataset.m!==undefined&&view==='play')drafts[`${cur}-${t.dataset.m}-${t.dataset.s}`]=t.value;
+});
+document.addEventListener('focusout',()=>{
+  setTimeout(()=>{if(needRound&&view==='play'&&!scoreFocused())renderRound()},80);
 });
 document.addEventListener('change',async e=>{
+  if(e.target.id==='rsel'){chosenR=+e.target.value;updateNote();return}
   if(e.target.id==='fee'&&isAdmin()){
     const v=Math.max(0,Math.min(1000,+e.target.value||0));
     T.fee=v;updateNote();
