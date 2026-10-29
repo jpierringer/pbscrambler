@@ -86,7 +86,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false;
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true;
 
 /* ---------- helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
@@ -113,6 +113,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
+const cash=()=>!!T&&T.kind!=='open'&&T.money!==false;
 const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn);
 
 /* ---------- payouts + schedule ---------- */
@@ -210,7 +211,7 @@ const link=()=>location.href.split('#')[0].split('?')[0]+'?t='+T.code;
 
 /* ---------- my stats (from finished tournaments) ---------- */
 function myResults(){
-  return mine.filter(t=>t.status==='done'&&Array.isArray(t.result)).map(t=>{
+  return mine.filter(t=>t.status==='done'&&t.kind!=='open'&&t.money!==false&&Array.isArray(t.result)).map(t=>{
     const i=t.result.findIndex(x=>x.p===prof.id);
     return i<0?null:{t,rank:i+1,n:t.result.length,fee:+t.fee,pay:+t.result[i].pay||0};
   }).filter(Boolean);
@@ -235,6 +236,7 @@ function render(){
   else if(view==='home')a.innerHTML=homeHTML();
   else if(view==='lobby'){a.innerHTML=lobbyHTML();renderMembers();updateNote()}
   else if(view==='play'){a.innerHTML=playHTML();renderPlayBody()}
+  else if(view==='open'){a.innerHTML=openHTML();renderOpen()}
   else if(view==='done'){a.innerHTML=doneHTML()}
 }
 
@@ -261,8 +263,18 @@ function homeHTML(){
       <button data-act="join">Join as ${esc(prof.username)}</button>
       <div style="text-align:center;margin-top:8px"><button class="del" data-act="noinvite">Not this one? Go back</button></div></div>`;
   }else{
-    h+=`<div class="card"><button data-act="create">Start a new tournament</button>
-      <div class="note">You'll be the director: you approve players, start each round, and everyone enters their own scores.</div></div>
+    const op=newKind==='open';
+    h+=`<div class="card"><h2>Start something new</h2>
+      <label>Format</label><div class="tabs" style="margin-bottom:0">
+        <button class="${op?'':'on'}" data-act="fmt" data-k="scramble">Random scramble</button>
+        <button class="${op?'on':''}" data-act="fmt" data-k="open">Open play</button></div>
+      ${op?'':`<label>Money</label><div class="tabs" style="margin-bottom:0">
+        <button class="${newMoney?'on':''}" data-act="mon" data-v="1">Entry fee + payouts</button>
+        <button class="${newMoney?'':'on'}" data-act="mon" data-v="0">Just for fun</button></div>`}
+      <button class="sp" data-act="create">${op?'Start open play':'Start a new tournament'}</button>
+      <div class="note">${op
+        ?'You pick who plays with and against whom. Players can join any time, start games when a court is free, and enter their own scores. No money in open play.'
+        :`Teams are drawn for you each round, no repeat partners. You'll be the director: you ${newMoney?'approve players once they pay, ':''}start each round, and everyone enters their own scores.`}</div></div>
       <div class="card"><h2>Join with a code</h2>
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
       <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
@@ -271,9 +283,13 @@ function homeHTML(){
   if(mine.length){
     h+='<div class="card"><h2>Your tournaments</h2>'+mine.map(t=>{
       let st;
-      if(t.status==='done'){
+      if(t.kind==='open'){
+        const r=(t.result||[]).find(x=>x.p===prof.id);
+        st=t.status==='done'?(r?`Open play · ${r.w}-${r.l}`:'Open play · done'):'Open play · live';
+      }else if(t.status==='done'){
         const i=(t.result||[]).findIndex(x=>x.p===prof.id);
         if(i<0)st=`🏆 ${esc(t.result?.[0]?.n||'')}`;
+        else if(t.money===false)st=`#${i+1} of ${t.result.length} · for fun`;
         else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
       }else st=t.status==='playing'?`Round ${t.current_round}`:'Lobby';
       return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${new Date(t.created_at).toLocaleDateString()}</b> <span>· ${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span></div><span>${st} ›</span></div>`;
@@ -286,13 +302,13 @@ function homeHTML(){
 function lobbyHTML(){
   const adm=isAdmin();
   return `<div class="top"><h1>Lobby</h1><button class="sec" data-act="home">Home</button></div>
-  <div class="sub">${adm?'You are the director. Approve players once they have paid and arrived.':'Waiting for everyone to arrive.'}</div>
+  <div class="sub">${adm?(cash()?'You are the director. Approve players once they have paid and arrived.':'You are the director. Players are approved automatically when they join. Revoke anyone who isn\'t playing.'):'Waiting for everyone to arrive.'}</div>
   ${adm?'':'<div class="banner" id="banner"></div>'}
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
     <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div>
     <div class="note">Anyone with the link can join the lobby until round 1 starts.</div></div>
   <div class="card"><div class="row">
-    <div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>
+    ${cash()?`<div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>`:''}
     <div><label style="margin-top:0">Approved players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
     <div id="rbox"></div><div class="note" id="startnote"></div></div>
   <div class="card"><div id="mlist"></div>
@@ -334,8 +350,10 @@ function updateNote(){
   if(el){
     if(!adm)el.textContent='';
     else if(ok){
-      const r=roundsFor(n),b=n%4,p=payouts(n,+T.fee||0);
-      let t=`${r} rounds · everyone plays ${gamesEach(n,r)} games${b?` · ${b} sit out each round`:''} · pool ${$$(n*(+T.fee||0))} · payouts ${p.map((x,i)=>'#'+(i+1)+' '+$$(x)).join(', ')}.`;
+      const r=roundsFor(n),b=n%4;
+      let t=`${r} rounds · everyone plays ${gamesEach(n,r)} games${b?` · ${b} sit out each round`:''}`;
+      if(cash()){const p=payouts(n,+T.fee||0);t+=` · pool ${$$(n*(+T.fee||0))} · payouts ${p.map((x,i)=>'#'+(i+1)+' '+$$(x)).join(', ')}`}
+      t+='.';
       if(r>7){const alt=[n-1,n+1].filter(m=>validN(m)&&defaultRounds(m)<=7);t+=` That's a long event, because everyone has to play the same number of games.`+(alt.length?` ${alt.join(' or ')} players would be shorter.`:'')}
       if(w)t+=` ${w} still waiting will watch as spectators.`;
       el.textContent=t;
@@ -343,7 +361,7 @@ function updateNote(){
   }
   const b=$('startbtn');if(b)b.disabled=!ok;
   const bn=$('banner');
-  if(bn){const me=myMember();bn.textContent=me&&me.approved?"You're approved ✓ Waiting for the director to start round 1.":`Waiting for the director to approve you. Pay the ${$$(+T.fee)} entry fee to the director.`}
+  if(bn){const me=myMember();bn.textContent=me&&me.approved?(cash()?"You're approved ✓ Waiting for the director to start round 1.":"You're in ✓ Waiting for the director to start round 1."):(cash()?`Waiting for the director to approve you. Pay the ${$$(+T.fee)} entry fee to the director.`:'Waiting for the director to approve you.')}
 }
 
 /* ----- play ----- */
@@ -400,11 +418,11 @@ function renderCtl(){
   el.innerHTML=h;
 }
 function renderStand(){
-  const st=standings(),p=payouts(T.players.length,+T.fee||0);
+  const c=cash(),st=standings(),p=c?payouts(T.players.length,+T.fee||0):[];
   const over=tournamentOver();
-  $('sh').textContent=over?'Final standings':'Standings (projected payouts)';
-  $('st').innerHTML='<tr><th>#</th><th>Player</th><th>G</th><th>Pts</th><th>+/−</th><th>Payout</th></tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.g}</td><td>${x.pf}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td><td class="pay">${i<p.length?$$(p[i]):''}</td></tr>`).join('');
-  $('pool').textContent=`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`;
+  $('sh').textContent=over?'Final standings':c?'Standings (projected payouts)':'Standings';
+  $('st').innerHTML='<tr><th>#</th><th>Player</th><th>G</th><th>Pts</th><th>+/−</th>'+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.g}</td><td>${x.pf}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${i<p.length?$$(p[i]):''}</td>`:''}</tr>`).join('');
+  $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`:`Code ${T.code} · Just for fun`;
 }
 function renderPlayBody(){
   if(cur>=T.current_round)cur=T.current_round-1;
@@ -412,30 +430,117 @@ function renderPlayBody(){
   renderTabs();renderRound();renderCtl();renderStand();
 }
 function doneHTML(){
-  const r=T.result||[],pool=+T.fee*r.length;
+  if(T.kind==='open')return doneOpenHTML();
+  const r=T.result||[],pool=+T.fee*r.length,c=cash();
   return `<div class="top"><h1>Final results</h1><button class="sec" data-act="home">Home</button></div>
-  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${$$(pool)} pool · entry ${$$(+T.fee)}</div>
-  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th><th>Paid</th></tr>`+
-  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.pf}</td><td>${x.d>0?'+':''}${x.d}</td><td class="pay">${x.pay?$$(x.pay):''}</td></tr>`).join('')+
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:' · just for fun'}</div>
+  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>Pts</th><th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
+  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.pf}</td><td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
   `</table></div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
+}
+
+/* ----- open play ----- */
+const gDone=g=>g.sa!=null&&g.sb!=null;
+const gTeam=t=>t.map(x=>esc(x.n)).join(' &amp; ');
+const gMine=g=>!!prof&&[...g.a,...g.b].some(x=>x.p===prof.id);
+const gCan=g=>T.status==='playing'&&(isAdmin()||gMine(g));
+const myMemberId=()=>myMember()?.id||'';
+function defaultPick(){return {p1:myMemberId(),p2:'',o1:'',o2:''}}
+function openHTML(){
+  return `<div class="top"><h1>Open play</h1><button class="sec" data-act="home">Home</button></div>
+  <div class="sub">${isAdmin()?'You are the host. ':''}Anyone with the code can join any time. Pick your partner and opponents, play, then enter the score.</div>
+  <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
+    <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div></div>
+  <div id="ob"></div>`;
+}
+function openStand(){
+  const s={};
+  games.filter(g=>gDone(g)&&!g.voided).forEach(g=>{
+    [[g.a,g.sa,g.sb],[g.b,g.sb,g.sa]].forEach(([t,f,a])=>t.forEach(x=>{
+      const r=s[x.n]||(s[x.n]={n:x.n,p:x.p,g:0,w:0,l:0,pf:0,pa:0});
+      r.g++;r.pf+=f;r.pa+=a;f>a?r.w++:r.l++;
+    }));
+  });
+  return Object.values(s).sort((x,y)=>y.w-x.w||(y.pf-y.pa)-(x.pf-x.pa)||x.n.localeCompare(y.n));
+}
+function gameRow(g){
+  return `<div class="mrow first" style="border-top:1px solid var(--bd)"><div><span class="t">${gTeam(g.a)}</span> <b>${g.sa}</b> – <b>${g.sb}</b> <span class="t">${gTeam(g.b)}</span>${g.rated?'':'<span class="badge">unrated</span>'}</div></div>`;
+}
+function scoreBox(g){
+  const v=s=>esc(drafts[`g-${g.id}-${s}`]??(g[s]??''));
+  const ib=s=>`<input type="number" inputmode="numeric" min="0" max="999" data-g="${g.id}" data-s="${s}" value="${v(s)}" placeholder="0">`;
+  return `<div class="match${gMine(g)?' mine':''}"><div class="t">${gTeam(g.a)}</div>${ib('sa')}
+    <div class="vs">vs</div><div class="t">${gTeam(g.b)}</div>${ib('sb')}
+    <div class="foot"><button data-act="gscore" data-g="${g.id}">${gDone(g)?'Save score':'Submit score'}</button>
+    ${gDone(g)?`<button class="del" data-act="gedit" data-g="">cancel</button>`:`<button class="del" data-act="gcancel" data-g="${g.id}">cancel game</button>`}
+    ${!g.rated?'<span>unrated (guest)</span>':''}</div></div>`;
+}
+function renderOpen(){
+  const el=$('ob');if(!el)return;needOpen=false;
+  const adm=isAdmin(),live=games.filter(g=>!gDone(g)&&!g.voided),fin=games.filter(g=>gDone(g)&&!g.voided).slice().reverse();
+  const busy=new Set(live.flatMap(g=>[...g.a,...g.b].map(x=>x.n)));
+  const ok=M.filter(m=>m.approved),me=myMember();
+  const sel=(slot,lbl)=>`<div><label>${lbl}</label><select data-slot="${slot}"><option value="">Choose…</option>${ok.map(m=>`<option value="${m.id}"${pick[slot]===m.id?' selected':''}${busy.has(m.name)?' disabled':''}>${esc(m.name)}${busy.has(m.name)?' (playing)':''}</option>`).join('')}</select></div>`;
+  let h='';
+  if(me||adm){
+    h+=`<div class="card"><h2>Start a game</h2>
+      <div class="row">${adm?sel('p1','Player 1'):`<div><label>Player 1</label><div class="t" style="padding:10px 0">You</div></div>`}${sel('p2',adm?'Player 2':'Your partner')}</div>
+      <div class="grp" style="text-align:center;margin:8px 0 0">vs</div>
+      <div class="row">${sel('o1','Opponent 1')}${sel('o2','Opponent 2')}</div>
+      <button class="sp" data-act="gstart">Start game</button>
+      <div class="note">Games that include a guest (a player without an account) are marked unrated.</div></div>`;
+  }
+  h+=`<div class="card"><h2>Playing now (${live.length})</h2>`+(live.length?live.map(g=>{
+    if(gCan(g))return scoreBox(g);
+    return `<div class="mrow first"><div><span class="t">${gTeam(g.a)}</span> vs <span class="t">${gTeam(g.b)}</span></div><span class="note">playing…</span></div>`;
+  }).join(''):'<div class="note">No games in progress.</div>')+'</div>';
+  h+=`<div class="card"><h2>Finished games (${fin.length})</h2>`+(fin.length?fin.map(g=>{
+    if(editG===g.id&&gCan(g))return scoreBox(g);
+    return gameRow(g).replace('</div></div>',`</div>${gCan(g)?`<button class="del" data-act="gedit" data-g="${g.id}">fix score</button>`:''}</div>`);
+  }).join(''):'<div class="note">Nothing yet.</div>')+'</div>';
+  const st=openStand();
+  if(st.length)h+=`<div class="card"><h2>Standings</h2><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
+    st.map((x,i)=>`<tr class="${x.p&&prof&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.g}</td><td>${x.w}</td><td>${x.l}</td><td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td></tr>`).join('')+
+    `</table><div class="note">Ranked by wins, then point differential.</div></div>`;
+  h+=`<div class="card"><h2>Players (${ok.length})</h2>`+ok.map((m,i)=>{
+    const isDir=m.profile_id&&m.profile_id===T.admin_id,has=games.some(g=>[...g.a,...g.b].some(x=>x.n===m.name));
+    return `<div class="mrow${i?'':' first'}"><div>${esc(m.name)}${isDir?'<span class="badge">host</span>':''}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div>${adm&&!isDir&&!has?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''}</div>`;
+  }).join('')+(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:'')+'</div>';
+  if(adm)h+=`<button class="sec" data-act="gend">End session</button>
+    <div class="note" style="text-align:center">${live.length?'Finish or cancel games in progress first.':'Saves the standings. Games stay on record.'}</div>
+    <div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete session</button></div>`;
+  el.innerHTML=h;
+}
+function doneOpenHTML(){
+  const r=T.result||[],fin=games.filter(g=>gDone(g)&&!g.voided).slice().reverse();
+  return `<div class="top"><h1>Open play results</h1><button class="sec" data-act="home">Home</button></div>
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${fin.length} games</div>
+  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
+  r.map((x,i)=>`<tr class="${x.p&&prof&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${esc(x.n)}</td><td>${x.g}</td><td>${x.w}</td><td>${x.l}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
+  `</table></div><div class="card"><h2>Games</h2>${fin.map(gameRow).join('')}</div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete session</button></div>':''}`;
 }
 
 /* ---------- data ---------- */
 async function loadMine(){
-  const {data}=await sb.from('tournaments').select('id,code,status,current_round,created_at,fee,result,admin_id').order('created_at',{ascending:false}).limit(100);
+  const {data}=await sb.from('tournaments').select('id,code,status,current_round,created_at,fee,result,admin_id,kind,money').order('created_at',{ascending:false}).limit(100);
   mine=data||[];
 }
 async function loadMembers(){
   const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
   M=data||[];
 }
-function viewFor(s){return s==='lobby'?'lobby':s==='playing'?'play':'done'}
+async function loadGames(){
+  const {data}=await sb.from('games').select('*').eq('tournament_id',T.id).order('created_at');
+  games=data||[];
+}
+function viewFor(s){return s==='done'?'done':T.kind==='open'?'open':s==='lobby'?'lobby':'play'}
 function subscribe(){
   unsubscribe();
   let tm=null;const sched=()=>{clearTimeout(tm);tm=setTimeout(refresh,300)};
   chan=sb.channel('t-'+T.id)
     .on('postgres_changes',{event:'*',schema:'scrambler',table:'tournaments',filter:'id=eq.'+T.id},sched)
     .on('postgres_changes',{event:'*',schema:'scrambler',table:'members'},sched)
+    .on('postgres_changes',{event:'*',schema:'scrambler',table:'games'},sched)
     .subscribe();
   poll=setInterval(()=>{if(!document.hidden)refresh()},8000);
 }
@@ -446,7 +551,7 @@ function unsubscribe(){
 async function openT(id){
   const {data,error}=await sb.from('tournaments').select('*').eq('id',id).maybeSingle();
   if(error||!data)return false;
-  T=data;await loadMembers();drafts={};
+  T=data;await loadMembers();games=[];if(T.kind==='open')await loadGames();drafts={};editG='';pick=defaultPick();
   ls.set('pb_last',id);
   view=viewFor(T.status);
   cur=view==='play'?T.current_round-1:0;
@@ -454,9 +559,10 @@ async function openT(id){
   return true;
 }
 async function goHome(){
-  unsubscribe();T=null;M=[];view='home';ls.del('pb_last');
+  unsubscribe();T=null;M=[];games=[];view='home';ls.del('pb_last');
   await loadMine();render();window.scrollTo(0,0);
 }
+const typing=()=>{const a=document.activeElement;return !!(a&&(a.tagName==='INPUT'||a.tagName==='SELECT')&&a.closest&&a.closest('#ob'))};
 const scoreFocused=()=>{const a=document.activeElement;return !!(a&&a.dataset&&a.dataset.m!==undefined&&a.closest&&a.closest('#round'))};
 async function refresh(){
   if(!T||busy)return;busy=true;
@@ -465,11 +571,12 @@ async function refresh(){
     if(error)return;
     if(!data){toast("You're no longer in this tournament");await goHome();return}
     const wasAdmin=isAdmin(),oldCR=T.current_round;
-    T=data;await loadMembers();
+    T=data;await loadMembers();if(T.kind==='open')await loadGames();
     if(T.current_round>oldCR&&cur>=oldCR-1){cur=T.current_round-1;drafts={}}
     const v=viewFor(T.status);
     if(v!==view||wasAdmin!==isAdmin()){view=v;if(v==='play')cur=Math.min(cur,T.current_round-1);render();return}
     if(view==='lobby'){renderMembers();updateNote()}
+    else if(view==='open'){if(typing())needOpen=true;else renderOpen()}
     else if(view==='play'){
       if(cur>=T.current_round)cur=T.current_round-1;
       renderTabs();renderCtl();renderStand();
@@ -498,10 +605,32 @@ const actions={
     try{await rpc('sign_out')}catch(e){return}
     unsubscribe();prof=null;T=null;M=[];mine=[];ls.del('pb_last');authMode='in';view='auth';render();
   },
+  fmt(el){newKind=el.dataset.k;render()},
+  mon(el){newMoney=el.dataset.v==='1';render()},
   async create(){
-    const r=await rpc('create_tournament');
+    const r=await rpc('create_tournament',{p_kind:newKind,p_money:newKind==='open'?false:newMoney});
     await openT(r.id);
   },
+  async gstart(){
+    const p=pick;
+    if(!p.p1||!p.p2||!p.o1||!p.o2)return toast('Choose all four players');
+    if(new Set([p.p1,p.p2,p.o1,p.o2]).size<4)return toast('Pick four different players');
+    await rpc('open_game',{p_tid:T.id,p_a:[p.p1,p.p2],p_b:[p.o1,p.o2]});
+    pick={...defaultPick(),p1:isAdmin()?p.p1:defaultPick().p1};
+    await loadGames();renderOpen();toast('Game started');
+  },
+  async gscore(el){
+    const id=el.dataset.g,a=document.querySelector(`#ob [data-g="${id}"][data-s="sa"]`),b=document.querySelector(`#ob [data-g="${id}"][data-s="sb"]`);
+    const sa=(a?.value||'').trim(),sb2=(b?.value||'').trim();
+    if(!/^\d{1,3}$/.test(sa)||!/^\d{1,3}$/.test(sb2))return toast('Enter both scores');
+    if(+sa===+sb2)return toast("Someone has to win. Scores can't be tied");
+    await rpc('score_game',{p_gid:id,p_sa:sa,p_sb:sb2});
+    delete drafts[`g-${id}-sa`];delete drafts[`g-${id}-sb`];editG='';
+    await loadGames();renderOpen();toast('Score saved');
+  },
+  gedit(el){editG=el.dataset.g||'';renderOpen()},
+  async gcancel(el){await rpc('cancel_game',{p_gid:el.dataset.g});await loadGames();renderOpen()},
+  gend(el){twoTap(el,'Tap again to end the session',async()=>{await rpc('close_session',{p_tid:T.id});await refresh()})},
   async join(){
     const c=cleanCode($('code')?.value);
     if(c.length<5){toast('Enter the 5-character code');return}
@@ -548,7 +677,7 @@ const actions={
   },
   async nextround(){await rpc('next_round',{p_tid:T.id});await refresh();cur=T.current_round-1;renderPlayBody();window.scrollTo(0,0)},
   async finish(){
-    const st=standings(),p=payouts(T.players.length,+T.fee||0);
+    const st=standings(),p=cash()?payouts(T.players.length,+T.fee||0):[];
     const result=st.map((x,i)=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:i<p.length?p[i]:0}));
     await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
     await refresh();
@@ -559,7 +688,7 @@ const actions={
 };
 document.addEventListener('click',async e=>{
   const el=e.target.closest('[data-act]');if(!el||!actions[el.dataset.act])return;
-  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode'].includes(act);
+  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit'].includes(act);
   if(lock)el.disabled=true;
   try{await actions[act](el)}catch(err){console.error(err)}
   if(lock&&el.isConnected)el.disabled=false;
@@ -569,12 +698,14 @@ document.addEventListener('input',e=>{
   const t=e.target;
   if(t.id==='code')t.value=cleanCode(t.value);
   else if(t.id==='pin'||t.id==='pin2')t.value=t.value.replace(/\D/g,'').slice(0,6);
+  else if(t.dataset&&t.dataset.g&&view==='open')drafts[`g-${t.dataset.g}-${t.dataset.s}`]=t.value;
   else if(t.dataset&&t.dataset.m!==undefined&&view==='play')drafts[`${cur}-${t.dataset.m}-${t.dataset.s}`]=t.value;
 });
 document.addEventListener('focusout',()=>{
-  setTimeout(()=>{if(needRound&&view==='play'&&!scoreFocused())renderRound()},80);
+  setTimeout(()=>{if(needRound&&view==='play'&&!scoreFocused())renderRound();if(needOpen&&view==='open'&&!typing())renderOpen()},80);
 });
 document.addEventListener('change',async e=>{
+  if(e.target.dataset&&e.target.dataset.slot){pick[e.target.dataset.slot]=e.target.value;return}
   if(e.target.id==='rsel'){chosenR=+e.target.value;updateNote();return}
   if(e.target.id==='fee'&&isAdmin()){
     const v=Math.max(0,Math.min(1000,+e.target.value||0));
