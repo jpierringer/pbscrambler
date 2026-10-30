@@ -36,6 +36,7 @@ button.sm{width:auto;padding:6px 12px;font-size:13px}
 .match{display:grid;grid-template-columns:1fr 64px;gap:8px 10px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--bd)}
 .match:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
 .match.mine{background:var(--ac2);border-radius:10px;padding:10px;border-bottom:0}
+.match .ct{grid-column:1/-1;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
 .match .vs{grid-column:1/-1;text-align:center;color:var(--mu);font-size:12px;margin:-2px 0}
 .match .foot{grid-column:1/-1;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mu)}
 .match .foot button{width:auto;padding:8px 14px;font-size:14px}
@@ -139,6 +140,24 @@ function payouts(n,fee){
   }
   return [first,...ex.map(e=>f+e)].map(x=>Math.round(x*u*100)/100).sort((x,y)=>y-x);
 }
+/* Courts: the games in a round are played at the same time, one per court (court = position in the round).
+   Reorder each round's games so nobody gets stuck on one court: pick the order that repeats courts least. */
+function assignCourts(rounds,n){
+  const seen=Array.from({length:n},()=>({}));
+  const perms=a=>a.length<2?[a]:a.flatMap((x,i)=>perms([...a.slice(0,i),...a.slice(i+1)]).map(p=>[x,...p]));
+  return rounds.map(R=>{
+    let best=null,bs=1e9;
+    for(const p of perms(R.map((_,i)=>i))){
+      let c=0;
+      p.forEach((mi,court)=>[...R[mi].a,...R[mi].b].forEach(x=>{c+=(seen[x][court]||0)**2}));
+      c+=Math.random()*0.01;
+      if(c<bs){bs=c;best=p}
+    }
+    const out=best.map(i=>R[i]);
+    out.forEach((m,court)=>[...m.a,...m.b].forEach(x=>{seen[x][court]=(seen[x][court]||0)+1}));
+    return out;
+  });
+}
 function genSchedule(n,R){
   const b=n%4;               // players sitting out each round
   for(let limit=2;limit<=4;limit++){
@@ -175,7 +194,7 @@ function genSchedule(n,R){
         found.byes.forEach(i=>byeCnt[i]++);
         rounds.push(found.matches);
       }
-      if(ok)return rounds;
+      if(ok)return assignCourts(rounds,n);
     }
   }
   return null;
@@ -402,7 +421,7 @@ function renderRound(){
     if(edit)foot=`<div class="foot"><button data-act="submit" data-m="${j}">${filled(m)?'Update score':'Submit score'}</button>${filled(m)&&m.by?`<span>Entered by ${esc(m.by)}</span>`:''}</div>`;
     else if(filled(m)&&m.by)foot=`<div class="foot"><span>Final · entered by ${esc(m.by)}</span></div>`;
     else if(!filled(m)&&ri+1===T.current_round&&T.status==='playing')foot=`<div class="foot"><span>Waiting for score</span></div>`;
-    return `<div class="match${mineM?' mine':''}"><div class="t">${team(m.a)}</div>${box('sa')}
+    return `<div class="match${mineM?' mine':''}">${R.length>1?`<div class="ct">Court ${j+1}</div>`:''}<div class="t">${team(m.a)}</div>${box('sa')}
     <div class="vs">${mineM?'your game · ':''}vs</div>
     <div class="t">${team(m.b)}</div>${box('sb')}${foot}</div>`;
   }).join('')+byeHTML(ri);
