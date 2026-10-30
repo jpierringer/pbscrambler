@@ -251,7 +251,9 @@ function authHTML(){
     <button class="${nw?'on':''}" data-act="mode" data-m="new">Create account</button></div>
     <label>Username</label><input id="un" maxlength="20" autocapitalize="none" autocomplete="username" value="${u}" placeholder="Pick a name others will recognize">
     <label>PIN (4–6 digits)</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="${nw?'new-password':'current-password'}" placeholder="••••">
-    ${nw?`<label>Confirm PIN</label><input id="pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••">`:''}
+    ${nw?`<label>Confirm PIN</label><input id="pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••">
+    <label>Your DUPR rating <span style="font-weight:400">(optional)</span></label><input id="dupr" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="e.g. 3.8">
+    <div class="note" style="margin-top:4px">Starts your rating near your level instead of 3.5. It still counts as unproven, so it adjusts quickly if it's off. Can't be changed after your first rated game.</div>`:''}
     <button class="sp" data-act="auth">${nw?'Create account':'Sign in'}</button>
     <div class="note">No email needed. Your username and PIN keep your tournament history on any phone. There's no PIN reset, so pick one you'll remember.</div></div>`;
 }
@@ -281,7 +283,7 @@ function homeHTML(){
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
       <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
   }
-  h+=boardCardHTML()+statsHTML();
+  h+=boardCardHTML()+startCardHTML()+statsHTML();
   if(mine.length){
     h+='<div class="card"><h2>Your tournaments</h2>'+mine.map(t=>{
       let st;
@@ -441,28 +443,36 @@ function doneHTML(){
   `</table></div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
 }
 
+function startCardHTML(){
+  if(!prof||prof.locked)return '';
+  return `<div class="card"><h2>Starting rating <span class="note" style="font-weight:400">· optional</span></h2>
+    <div class="row"><input id="dupr2" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="Your DUPR, e.g. 3.8" value="${prof.start??''}"><button data-act="setstart" style="flex:0 0 90px">Save</button></div>
+    <div class="note">If you have a DUPR rating, enter it so your rating starts near your level instead of 3.5. It still counts as unproven, so it adjusts quickly if it's off. Locked after your first rated game.</div></div>`;
+}
+
 /* ----- leaderboard ----- */
 const isMe=x=>!!prof&&String(x.username).toLowerCase()===prof.username.toLowerCase();
 const rankedNow=()=>board.filter(x=>x.ranked&&x.active);
 function boardCardHTML(){
   if(!board.length)return `<div class="card"><div class="tl" data-act="board" style="border:0;padding:0"><div><h2 style="margin:0 0 2px">Leaderboard</h2><span>No ratings yet. They start after your first finished event.</span></div><span>›</span></div></div>`;
   const me=board.find(isMe),rk=rankedNow(),pos=me&&me.ranked&&me.active?rk.indexOf(me)+1:0;
-  const line=me?`Your rating <b style="color:var(--tx)">${(+me.rating).toFixed(2)}</b> · ${pos?`#${pos} of ${rk.length}`:'not ranked yet'}`:`${board.length} players rated`;
+  const line=me?`Your rating <b style="color:var(--tx)">${(+me.rating).toFixed(2)}</b> · ${pos?`#${pos} of ${rk.length}`:'not ranked yet'}${me.tougher?' · needs tougher opponents':''}`:`${board.length} players rated`;
   return `<div class="card"><div class="tl" data-act="board" style="border:0;padding:0"><div><h2 style="margin:0 0 2px">Leaderboard</h2><span>${line}</span></div><span>›</span></div></div>`;
 }
 function boardHTML(){
   const rk=rankedNow(),ia=board.filter(x=>x.ranked&&!x.active),pv=board.filter(x=>!x.ranked);
   const dt=d=>{const x=new Date(d),o={month:'short',day:'numeric'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleDateString(undefined,o)};
-  const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>Rating</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="${isMe(x)?'me':''}"><td>${num?i+1:''}</td><td>${esc(x.username)}${x.reliable?'':'<span class="badge">settling</span>'}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
+  const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>Rating</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="${isMe(x)?'me':''}"><td>${num?i+1:''}</td><td>${esc(x.username)}${x.reliable?'':'<span class="badge">settling</span>'}${x.tougher?'<div class="note" style="margin:2px 0 0">needs tougher opponents</div>':''}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
   let h=`<div class="top"><h1>Leaderboard</h1><button class="sec" data-act="home">Home</button></div>
   <div class="sub">Everyone's rating, 2.0 to 8.0. New players start at 3.5.</div>`;
   if(!board.length)h+=`<div class="card"><div class="note" style="margin:0">No ratings yet. Ratings are built from finished events where all four players in a game have accounts.</div></div>`;
   else{
-    h+=`<div class="card"><h2>Ranked (${rk.length})</h2>${rk.length?tbl(rk,true):'<div class="note" style="margin:0">Nobody is ranked yet. You need 8 rated games across at least 2 events.</div>'}</div>`;
-    if(pv.length)h+=`<div class="card"><h2>Not ranked yet (${pv.length})</h2>${tbl(pv,false)}<div class="note">Listed once a player has 8 rated games across at least 2 events.</div></div>`;
+    h+=`<div class="card"><h2>Ranked (${rk.length})</h2>${rk.length?tbl(rk,true):'<div class="note" style="margin:0">Nobody is ranked yet. You need 12 rated games across at least 3 events.</div>'}</div>`;
+    if(pv.length)h+=`<div class="card"><h2>Not ranked yet (${pv.length})</h2>${tbl(pv,false)}<div class="note">Listed once a player has 12 rated games across at least 3 events.</div></div>`;
     if(ia.length)h+=`<div class="card dim"><h2>Inactive (${ia.length})</h2>${tbl(ia,false)}<div class="note">No games in the last 6 months. They return to the ranking when they play again.</div></div>`;
   }
-  h+=`<div class="card"><h2>How ratings work</h2><div class="note" style="margin-top:0">Every game compares how many points each side won with what their ratings predicted. Winning never lowers your rating and losing never raises it, so a favorite who wins by less than expected stays put. Beating stronger players moves you more. New or returning players adjust faster. Games with a guest (no account) don't count. "Settling" means the rating is still moving quickly.</div></div>`;
+  h+=`<div class="card"><h2>How ratings work</h2><div class="note" style="margin-top:0">Every game compares how many points each side won with what their ratings predicted. Winning never lowers your rating and losing never raises it, so a favorite who wins by less than expected stays put. Beating stronger players moves you more, and beating weaker ones counts for less and less the further ahead of them you already are. Wins over brand-new or unproven players count for less too. Your rating can't climb far past the players you've beaten, so to keep rising you have to beat higher-rated players. New or returning players adjust faster. Games with a guest (no account) don't count.</div>
+    <div class="note"><b>Settling:</b> the rating is still moving quickly, or it rests on only a few different opponents.<br><b>Needs tougher opponents:</b> your rating is a point or more above the best team you've beaten. It isn't proven yet. Beat higher-rated players to confirm it.</div></div>`;
   return h;
 }
 
@@ -552,6 +562,7 @@ async function loadMine(){
   const {data}=await sb.from('tournaments').select('id,code,status,current_round,created_at,fee,result,admin_id,kind,money').order('created_at',{ascending:false}).limit(100);
   mine=data||[];
   const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[];
+  const w=await sb.rpc('whoami');if(w.data&&prof){prof.start=w.data.start_rating;prof.locked=!!w.data.locked}
 }
 async function loadMembers(){
   const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
@@ -623,10 +634,13 @@ const actions={
     let r;
     if(authMode==='new'){
       if(p!==$('pin2').value)return toast("PINs don't match");
-      r=await rpc('create_account',{p_username:u,p_pin:p});
+      const raw=($('dupr')?.value||'').trim();let dv=null;
+      if(raw!==''){dv=+raw;if(!(dv>=2&&dv<=6))return toast('DUPR must be between 2.0 and 6.0, or left blank')}
+      r=await rpc('create_account',{p_username:u,p_pin:p,p_dupr:dv});
     }else r=await rpc('sign_in',{p_username:u,p_pin:p});
     if(!r||!r.ok)return toast(r?.error||'Could not sign in');
-    prof={id:r.profile_id,username:r.username};ls.set('pb_user',r.username);
+    const me=await rpc('whoami');
+    prof={id:r.profile_id,username:r.username,start:me?.start_rating??null,locked:!!me?.locked};ls.set('pb_user',r.username);
     await loadMine();view='home';render();window.scrollTo(0,0);
   },
   async signout(){
@@ -669,6 +683,11 @@ const actions={
   noinvite(){pendingCode='';history.replaceState(null,'',location.pathname);render()},
   async open(el){if(!await openT(el.dataset.id))toast('Could not open that tournament')},
   home(){return goHome()},
+  async setstart(){
+    const raw=($('dupr2').value||'').trim();let v=null;
+    if(raw!==''){v=+raw;if(!(v>=2&&v<=6))return toast('Enter a rating between 2.0 and 6.0, or leave it blank')}
+    await rpc('set_start_rating',{p_rating:v});prof.start=v;toast(v===null?'Starting rating cleared':'Starting rating saved');
+  },
   async board(){await loadMine();view='board';render();window.scrollTo(0,0)},
   async share(){
     const url=link();
@@ -747,7 +766,8 @@ document.addEventListener('keydown',e=>{
   const id=e.target.id;
   if(id==='gname')actions.addguest();
   else if(id==='code')actions.join();
-  else if(id==='un'||id==='pin'||id==='pin2')actions.auth();
+  else if(id==='un'||id==='pin'||id==='pin2'||id==='dupr')actions.auth();
+  else if(id==='dupr2')actions.setstart();
 });
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
 
@@ -769,7 +789,7 @@ function fatal(msg){$('app').innerHTML=TITLE+`<div class="card"><h2>Setup needed
   let w=null;
   try{w=await rpc('whoami')}catch(e){fatal('Could not reach the scrambler schema. Did you run <code>scrambler-schema.sql</code> and expose the <code>scrambler</code> schema?');return}
   if(!w){view='auth';render();return}
-  prof={id:w.profile_id,username:w.username};
+  prof={id:w.profile_id,username:w.username,start:w.start_rating,locked:!!w.locked};
   const last=ls.get('pb_last');
   if(last&&!pendingCode){
     if(await openT(last)&&T.status!=='done')return;
