@@ -115,7 +115,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',renaming=false;
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',renaming=false,evt=null;
 
 /* ---------- helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
@@ -351,7 +351,7 @@ function feedHTML(){
     const fmt=x.kind==='open'?'Open play':'Scramble',live=x.status!=='done',pl=`${x.players} player${x.players==1?'':'s'}`;
     const pre=x.name?fmt+' · ':'',sub=live?`${pre}${esc(x.host)} ${x.status==='lobby'?'is gathering players':'is hosting'} · ${pl}`:`${pre}${pl}${x.winner?` · 🏆 ${esc(x.winner)}`:''} · hosted by ${esc(x.host)}`;
     const when=live?(x.status==='lobby'?'Lobby':(x.kind==='open'?'Live':`Round ${x.round}${x.total_rounds?' of '+x.total_rounds:''}`)):ago(x.at);
-    return `<div class="tl" style="cursor:default"><div><b>${x.name?esc(x.name):fmt}</b>${x.mine?'<span class="badge">you</span>':''}<div class="note" style="margin:1px 0 0">${sub}</div></div><span style="white-space:nowrap;flex:none">${live?'<span class="pulse" style="display:inline-block;margin-right:6px"></span>':''}${when}</span></div>`;
+    return `<div class="tl" data-act="feedopen" data-id="${x.id}" data-mine="${x.mine?1:0}"><div><b>${x.name?esc(x.name):fmt}</b>${x.mine?'<span class="badge">you</span>':''}<div class="note" style="margin:1px 0 0">${sub}</div></div><span style="white-space:nowrap;flex:none">${live?'<span class="pulse" style="display:inline-block;margin-right:6px"></span>':''}${when} ›</span></div>`;
   };
   return `<div class="card"><h2>Around the club</h2>${feed.map(row).join('')}</div>`;
 }
@@ -361,7 +361,19 @@ function renderModal(){
   const m=$('modal');if(!m)return;
   if(!dlg||!prof){m.innerHTML='';document.body.classList.remove('noscroll');return}
   document.body.classList.add('noscroll');
-  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():plusDlgHTML()}</div></div>`;
+  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='event'&&evt?eventDlgHTML():plusDlgHTML()}</div></div>`;
+}
+function eventDlgHTML(){
+  const x=evt,live=x.status!=='done',fmt=x.kind==='open'?'Open play':'Scramble';
+  const state=live?(x.status==='lobby'?'Gathering players':(x.kind==='open'?'Live now':`Round ${x.round}${x.total_rounds?' of '+x.total_rounds:''}`)):`Finished ${ago(x.at)}`;
+  const names=(x.players||[]).map(n=>`<span class="badge" style="margin:0 6px 6px 0;display:inline-block;font-size:13px;padding:4px 8px">${esc(n)}</span>`).join('');
+  let body;
+  if(!live&&(x.result||[]).length){
+    const open=x.kind==='open';
+    body=`<div class="card"><h2>🏆 ${esc(x.result[0].n||'')}</h2><table><tr><th>#</th><th>Player</th>${open?'<th>W</th><th>L</th>':'<th>Pts</th>'}<th>+/−</th></tr>`+
+      x.result.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.n)}</td>${open?`<td>${r.w??''}</td><td>${r.l??''}</td>`:`<td>${r.pf??''}</td>`}<td>${r.d>0?'+':''}${r.d??''}</td></tr>`).join('')+`</table></div>`;
+  }else body=`<div class="card"><h2>Players (${(x.players||[]).length})</h2><div>${names||'<span class="note">Nobody has joined yet.</span>'}</div></div>`;
+  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
 }
 function profileDlgHTML(){
   const me=board.find(isMe),rk=rankedNow(),pos=me&&me.ranked&&me.active?rk.indexOf(me)+1:0;
@@ -763,6 +775,12 @@ const actions={
   },
   fmt(el){newKind=el.dataset.k;renderModal()},
   mon(el){newMoney=el.dataset.v==='1';renderModal()},
+  async feedopen(el){
+    if(el.dataset.mine==='1'){if(!await openT(el.dataset.id))toast('Could not open that event');return}
+    const r=await rpc('event_info',{p_id:el.dataset.id});
+    if(!r)return toast('That event has ended or is no longer listed');
+    evt=r;dlg='event';renderModal();
+  },
   renstart(){renaming=true;render();$('rname')?.focus()},
   async rensave(){
     const v=($('rname')?.value||'').trim().slice(0,40);
