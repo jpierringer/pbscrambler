@@ -23,7 +23,7 @@ h1{font-size:22px;margin:4px 0 2px}h2{font-size:16px;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px}
 label{display:block;font-size:13px;color:var(--mu);margin:10px 0 4px}
 .card>label:first-child{margin-top:0}
-input,select{width:100%;font:inherit;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
+input,select,textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
 .row{display:flex;gap:10px}.row>*{flex:1}
 button{font:inherit;font-weight:600;padding:12px 16px;border:0;border-radius:10px;background:var(--ac);color:#fff;cursor:pointer;width:100%}
 button:disabled{opacity:.5}
@@ -115,7 +115,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',renaming=false,evt=null;
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null;
 
 /* ---------- helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
@@ -320,7 +320,7 @@ function tlRow(t){
     else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
   }else st=t.status==='playing'?`Round ${t.current_round}`:'Lobby';
   const dt=new Date(t.created_at).toLocaleDateString();
-  return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${t.name?esc(t.name):dt}</b> <span>· ${t.name?dt+' · ':''}${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span></div><span style="text-align:right">${st} ›</span></div>`;
+  return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${t.name?esc(t.name):dt}</b> <span>· ${t.name?dt+' · ':''}${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span>${t.status!=='done'&&t.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(t.starts_at))}${t.location?' · 📍 '+esc(t.location):''}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`;
 }
 function homeHTML(){
   const live=mine.filter(t=>t.status!=='done'),past=mine.filter(t=>t.status==='done');
@@ -349,7 +349,7 @@ function feedHTML(){
   if(!feed.length)return '';
   const row=x=>{
     const fmt=x.kind==='open'?'Open play':'Scramble',live=x.status!=='done',pl=`${x.players} player${x.players==1?'':'s'}`;
-    const pre=x.name?fmt+' · ':'',sub=live?`${pre}${esc(x.host)} ${x.status==='lobby'?'is gathering players':'is hosting'} · ${pl}`:`${pre}${pl}${x.winner?` · 🏆 ${esc(x.winner)}`:''} · hosted by ${esc(x.host)}`;
+    const pre=x.name?fmt+' · ':'',sub=live?`${pre}${esc(x.host)} ${x.status==='lobby'?'is gathering players':'is hosting'} · ${pl}${x.starts_at?' · 📅 '+esc(fmtWhen(x.starts_at)):''}${x.location?' · 📍 '+esc(x.location):''}`:`${pre}${pl}${x.winner?` · 🏆 ${esc(x.winner)}`:''} · hosted by ${esc(x.host)}`;
     const when=live?(x.status==='lobby'?'Lobby':(x.kind==='open'?'Live':`Round ${x.round}${x.total_rounds?' of '+x.total_rounds:''}`)):ago(x.at);
     return `<div class="tl" data-act="feedopen" data-id="${x.id}" data-mine="${x.mine?1:0}"><div><b>${x.name?esc(x.name):fmt}</b>${x.mine?'<span class="badge">you</span>':''}<div class="note" style="margin:1px 0 0">${sub}</div></div><span style="white-space:nowrap;flex:none">${live?'<span class="pulse" style="display:inline-block;margin-right:6px"></span>':''}${when} ›</span></div>`;
   };
@@ -373,7 +373,7 @@ function eventDlgHTML(){
     body=`<div class="card"><h2>🏆 ${esc(x.result[0].n||'')}</h2><table><tr><th>#</th><th>Player</th>${open?'<th>W</th><th>L</th>':'<th>Pts</th>'}<th>+/−</th></tr>`+
       x.result.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.n)}</td>${open?`<td>${r.w??''}</td><td>${r.l??''}</td>`:`<td>${r.pf??''}</td>`}<td>${r.d>0?'+':''}${r.d??''}</td></tr>`).join('')+`</table></div>`;
   }else body=`<div class="card"><h2>Players (${(x.players||[]).length})</h2><div>${names||'<span class="note">Nobody has joined yet.</span>'}</div></div>`;
-  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
+  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
 }
 function profileDlgHTML(){
   const me=board.find(isMe),rk=rankedNow(),pos=me&&me.ranked&&me.active?rk.indexOf(me)+1:0;
@@ -398,6 +398,10 @@ function plusDlgHTML(){
   return `<div class="top"><h2 style="margin:0;font-size:20px">Start or join a game</h2><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>
     <div class="card"><h2>Start something new</h2>
       <label style="margin-top:0">Name <span style="font-weight:400">(optional)</span></label><input id="tname" maxlength="40" placeholder="e.g. Friday night scramble" value="${esc(newName)}">
+      <details style="margin-top:10px" ${newWhen||newWhere||newNotes?'open':''}><summary class="note" style="cursor:pointer;margin:0">When, where and instructions (optional)</summary>
+        <label>When</label><input id="twhen" type="datetime-local" value="${esc(newWhen)}">
+        <label>Where</label><input id="twhere" maxlength="80" placeholder="e.g. Hudson Park, courts 3–5" value="${esc(newWhere)}">
+        <label>Instructions</label><textarea id="tnotes" rows="3" maxlength="500" placeholder="Parking, what to bring, how payment works…">${esc(newNotes)}</textarea></details>
       <label>Format</label><div class="tabs" style="margin-bottom:0">
         <button class="${op?'':'on'}" data-act="fmt" data-k="scramble">Random scramble</button>
         <button class="${op?'on':''}" data-act="fmt" data-k="open">Open play</button></div>
@@ -415,10 +419,24 @@ function plusDlgHTML(){
 
 /* ----- lobby ----- */
 const ttl=d=>T.name?esc(T.name):d;
+const fmtWhen=d=>new Date(d).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+const toLocalInput=d=>{if(!d)return '';const x=new Date(d),z=n=>String(n).padStart(2,'0');return `${x.getFullYear()}-${z(x.getMonth()+1)}-${z(x.getDate())}T${z(x.getHours())}:${z(x.getMinutes())}`};
+const fromLocalInput=v=>v?new Date(v).toISOString():null;
+const mapLink=l=>`<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l)}" target="_blank" rel="noopener" style="color:var(--ac)">${esc(l)}</a>`;
+function infoCard(t){
+  if(!t.starts_at&&!t.location&&!t.notes)return '';
+  return `<div class="card">${t.starts_at?`<div class="t">📅 ${esc(fmtWhen(t.starts_at))}</div>`:''}${t.location?`<div class="t" style="margin-top:4px">📍 ${mapLink(t.location)}</div>`:''}${t.notes?`<div style="white-space:pre-wrap;margin-top:8px;font-size:14px">${esc(t.notes)}</div>`:''}</div>`;
+}
 function nameBar(){
-  if(!isAdmin())return '';
-  if(renaming)return `<div class="row" style="margin:-4px 0 10px"><input id="rname" maxlength="40" placeholder="Name this event" value="${esc(T.name||'')}"><button data-act="rensave" style="flex:0 0 80px">Save</button></div>`;
-  return `<div style="margin:-6px 0 8px"><button class="del" data-act="renstart" style="padding:2px 0">${T.name?'Rename':'Name this event'}</button></div>`;
+  const info=infoCard(T);
+  if(!isAdmin())return info;
+  if(renaming)return `<div class="card"><h2>Event details</h2>
+    <label style="margin-top:0">Name</label><input id="rname" maxlength="40" placeholder="e.g. Friday night scramble" value="${esc(T.name||'')}">
+    <label>When</label><input id="rwhen" type="datetime-local" value="${esc(toLocalInput(T.starts_at))}">
+    <label>Where</label><input id="rwhere" maxlength="80" placeholder="e.g. Hudson Park, courts 3–5" value="${esc(T.location||'')}">
+    <label>Instructions</label><textarea id="rnotes" rows="4" maxlength="500" placeholder="What should people know? Parking, what to bring, how payment works…">${esc(T.notes||'')}</textarea>
+    <div class="row sp"><button class="sec" data-act="rencancel">Cancel</button><button data-act="rensave">Save</button></div></div>`;
+  return info+`<div style="margin:0 0 10px"><button class="del" data-act="renstart" style="padding:2px 0">${T.name||T.starts_at||T.location||T.notes?'Edit event details':'Name it, add a time, place or instructions'}</button></div>`;
 }
 function lobbyHTML(){
   const adm=isAdmin();
@@ -684,7 +702,7 @@ function doneOpenHTML(){
 
 /* ---------- data ---------- */
 async function loadMine(){
-  const {data}=await sb.from('tournaments').select('id,code,name,status,current_round,created_at,fee,result,admin_id,kind,money').order('created_at',{ascending:false}).limit(100);
+  const {data}=await sb.from('tournaments').select('id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money').order('created_at',{ascending:false}).limit(100);
   mine=data||[];
   const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[];
   const f=await sb.rpc('activity');feed=Array.isArray(f.data)?f.data:[];
@@ -783,16 +801,18 @@ const actions={
   },
   renstart(){renaming=true;render();$('rname')?.focus()},
   async rensave(){
-    const v=($('rname')?.value||'').trim().slice(0,40);
-    await rpc('rename_tournament',{p_tid:T.id,p_name:v});
-    T.name=v||null;renaming=false;render();
+    const v=id=>($(id)?.value||'').trim();
+    const name=v('rname').slice(0,40),when=fromLocalInput(v('rwhen')),where=v('rwhere').slice(0,80),notes=v('rnotes').slice(0,500);
+    await rpc('update_event',{p_tid:T.id,p_name:name,p_starts:when,p_location:where,p_notes:notes});
+    T.name=name||null;T.starts_at=when;T.location=where||null;T.notes=notes||null;renaming=false;render();
   },
+  rencancel(){renaming=false;render()},
   dopen(el){dlg=el.dataset.d;renderModal()},
   dclose(){dlg='';renderModal()},
   pastall(){showAllPast=!showAllPast;render()},
   async create(){
-    const r=await rpc('create_tournament',{p_kind:newKind,p_money:newKind==='open'?false:newMoney,p_name:newName.trim()||null});
-    newName='';
+    const r=await rpc('create_tournament',{p_kind:newKind,p_money:newKind==='open'?false:newMoney,p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
+    newName=newWhen=newWhere=newNotes='';
     await openT(r.id);
   },
   async gstart(){
@@ -888,6 +908,9 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{
   const t=e.target;
   if(t.id==='tname')newName=t.value;
+  else if(t.id==='twhen')newWhen=t.value;
+  else if(t.id==='twhere')newWhere=t.value;
+  else if(t.id==='tnotes')newNotes=t.value;
   else if(t.id==='code')t.value=cleanCode(t.value);
   else if(t.id==='pin'||t.id==='pin2')t.value=t.value.replace(/\D/g,'').slice(0,6);
   else if(t.dataset&&t.dataset.g&&view==='open')drafts[`g-${t.dataset.g}-${t.dataset.s}`]=t.value;
@@ -897,6 +920,7 @@ document.addEventListener('focusout',()=>{
   setTimeout(()=>{if(needRound&&view==='play'&&!scoreFocused())renderRound();if(needOpen&&view==='open'&&!typing())renderOpen()},80);
 });
 document.addEventListener('change',async e=>{
+  if(e.target.id==='twhen'){newWhen=e.target.value;return}
   if(e.target.dataset&&e.target.dataset.slot){pick[e.target.dataset.slot]=e.target.value;return}
   if(e.target.id==='rsel'){chosenR=+e.target.value;updateNote();return}
   if(e.target.id==='fee'&&isAdmin()){
