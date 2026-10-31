@@ -33,6 +33,8 @@ button.sm{width:auto;padding:6px 12px;font-size:13px}
 .tabs button{width:auto;flex:none;padding:8px 14px;background:var(--card);color:var(--tx);border:1px solid var(--bd)}
 .tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
 .tabs button.done::after{content:" ✓"}
+.tabs button.up{opacity:.65;border-style:dashed}
+.tabs button.up.on{opacity:1}
 .match{display:grid;grid-template-columns:1fr 64px;gap:8px 10px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--bd)}
 .match:last-child{border-bottom:0;margin-bottom:0;padding-bottom:0}
 .match.mine{background:var(--ac2);border-radius:10px;padding:10px;border-bottom:0}
@@ -140,7 +142,7 @@ const myIdx=()=>(T&&T.pids&&prof)?T.pids.indexOf(prof.id):-1;
 const myMember=()=>M.find(m=>m.profile_id&&prof&&m.profile_id===prof.id);
 const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
-const canEdit=(ri,m)=>T.status==='playing'&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
+const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
 const cash=()=>!!T&&T.kind!=='open'&&T.money!==false;
 const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn);
@@ -517,7 +519,7 @@ function playHTML(){
   ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
 }
 function renderTabs(){
-  $('tabs').innerHTML=T.rounds.slice(0,T.current_round).map((r,i)=>`<button class="${i==cur?'on ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">Round ${i+1}</button>`).join('');
+  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">Round ${i+1}</button>`).join('');
 }
 function byesOf(ri){const on=new Set();T.rounds[ri].forEach(m=>[...m.a,...m.b].forEach(i=>on.add(i)));return T.players.map((_,i)=>i).filter(i=>!on.has(i))}
 function byeHTML(ri){
@@ -529,7 +531,7 @@ function renderRound(){
   needRound=false;
   const ri=cur,R=T.rounds[ri];
   const n=R.filter(filled).length;
-  $('round').innerHTML=`<h2>Round ${ri+1} of ${T.rounds.length} <span class="note" style="font-weight:400">· ${n} of ${R.length} scores in</span></h2>`+R.map((m,j)=>{
+  $('round').innerHTML=`<h2>Round ${ri+1} of ${T.rounds.length} <span class="note" style="font-weight:400">· ${ri>=T.current_round?'upcoming':`${n} of ${R.length} scores in`}</span></h2>`+R.map((m,j)=>{
     const edit=canEdit(ri,m),mineM=inMatch(m);
     const val=s=>esc(drafts[`${ri}-${j}-${s}`]??m[s]);
     const box=s=>edit?`<input type="number" inputmode="numeric" min="0" max="999" data-m="${j}" data-s="${s}" value="${val(s)}" placeholder="0">`:`<div class="sc">${m[s]===''?'–':esc(m[s])}</div>`;
@@ -548,11 +550,12 @@ function renderCtl(){
   const waiting=R.map(m=>filled(m)?null:`${team(m.a)} vs ${team(m.b)}`).filter(Boolean);
   let h=`<h2>Round ${cr} status</h2><div>${R.filter(filled).length} of ${R.length} games reported</div>`;
   if(waiting.length)h+=`<div class="note">Still playing: ${waiting.join(' · ')}</div>`;
+  const auto=last?'':' The next round starts by itself once every game has a score.';
   if(isAdmin()){
-    h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'Finish tournament':'Start round '+(cr+1)}</button>`;
-    if(!done)h+=`<div class="note">${last?'Finish':'Next round'} unlocks when every game has a score. You can enter or fix any score yourself.</div>`;
+    if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'Finish tournament':'Start round '+(cr+1)}</button>`;
+    if(!done)h+=`<div class="note">${last?'Finish unlocks when every game has a score.':'The next round starts by itself once every game has a score.'} You can enter or fix any score yourself.</div>`;
   }else{
-    h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':'Round complete. Waiting for the director to start round '+(cr+1)+'.'):'Enter your score as soon as your game ends.'}</div>`;
+    h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':'Round complete. Waiting for the director to start round '+(cr+1)+'.'):'Enter your score as soon as your game ends.'+auto}</div>`;
   }
   el.innerHTML=h;
 }
@@ -564,7 +567,7 @@ function renderStand(){
   $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`:`Code ${T.code} · Just for fun`;
 }
 function renderPlayBody(){
-  if(cur>=T.current_round)cur=T.current_round-1;
+  if(cur>=T.rounds.length)cur=T.rounds.length-1;
   if(cur<0)cur=0;
   renderTabs();renderRound();renderCtl();renderStand();
 }
@@ -755,13 +758,13 @@ async function refresh(){
     if(!data){toast("You're no longer in this tournament");await goHome();return}
     const wasAdmin=isAdmin(),oldCR=T.current_round;
     T=data;await loadMembers();if(T.kind==='open')await loadGames();
-    if(T.current_round>oldCR&&cur>=oldCR-1){cur=T.current_round-1;drafts={}}
+    if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(`Round ${T.current_round} has started`)}
     const v=viewFor(T.status);
     if(v!==view||wasAdmin!==isAdmin()){view=v;if(v==='play')cur=Math.min(cur,T.current_round-1);render();return}
     if(view==='lobby'){renderMembers();updateNote()}
     else if(view==='open'){if(typing())needOpen=true;else renderOpen()}
     else if(view==='play'){
-      if(cur>=T.current_round)cur=T.current_round-1;
+      if(cur>=T.rounds.length)cur=T.rounds.length-1;
       renderTabs();renderCtl();renderStand();
       if(scoreFocused())needRound=true;else renderRound();
     }
@@ -884,6 +887,7 @@ const actions={
     delete drafts[`${ri}-${j}-sa`];delete drafts[`${ri}-${j}-sb`];
     T.rounds[ri][j]={...T.rounds[ri][j],sa:String(+sa),sb:String(+sb2),by:prof.username};
     renderTabs();renderRound();renderCtl();renderStand();toast('Score submitted');
+    if(ri+1===T.current_round&&allIn(T.rounds[ri]))await refresh();
   },
   async nextround(){await rpc('next_round',{p_tid:T.id});await refresh();cur=T.current_round-1;renderPlayBody();window.scrollTo(0,0)},
   async finish(){
