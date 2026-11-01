@@ -102,6 +102,8 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .sheet .card{background:var(--card)}
 .plink{cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 tr.tap{cursor:pointer}
+input.bad{border-color:var(--neg);outline:1px solid var(--neg)}
+.err{color:var(--neg);font-size:14px;font-weight:600;margin:10px 0 0}
 .xbtn{width:36px;height:36px;padding:0;border-radius:50%;font-size:20px;line-height:1;background:var(--ac2);color:var(--ac);flex:none}
 body.noscroll{overflow:hidden}
 </style></head><body><main id="app"></main><div id="modal"></div>
@@ -128,9 +130,34 @@ function twoTap(btn,label,fn){
   btn._orig=btn.textContent;btn.dataset.arm=1;btn.textContent=label;
   btn._t=setTimeout(()=>{delete btn.dataset.arm;btn.textContent=btn._orig},3000);
 }
-async function rpc(fn,args){
-  const {data,error}=await sb.rpc(fn,args);
-  if(error){toast(error.message);throw error}
+const isAuthErr=e=>!!e&&(e.status===401||e.status===403||['PGRST301','PGRST302','PGRST303'].includes(e.code)||/jwt|unauthor|not signed in|invalid token|token.*expired|no api key|invalid api key/i.test(e.message||''));
+function friendly(e){
+  const m=String(e?.message||'');
+  if(!navigator.onLine||/failed to fetch|networkerror|load failed|network request/i.test(m))return 'No connection. Check your signal and try again.';
+  if(e?.status===429||/rate limit|too many requests/i.test(m))return 'Too many requests from this network right now. Wait a minute and try again.';
+  if(isAuthErr(e))return 'Your session expired. Reload the page and try again.';
+  if(e?.code==='23505'||/duplicate key|profiles_username/i.test(m))return 'That username is taken.';
+  return m||'Something went wrong. Try again.';
+}
+async function reauth(){
+  try{await sb.auth.signOut({scope:'local'});const r=await sb.auth.signInAnonymously();return !r.error&&!!r.data?.session}catch(e){return false}
+}
+/* quiet: the caller shows the error itself instead of a toast */
+async function rpc(fn,args,quiet=false,retry=true){
+  let res;
+  try{res=await sb.rpc(fn,args)}catch(e){res={error:e}}
+  const {data,error}=res;
+  if(error){
+    if(retry&&isAuthErr(error)&&await reauth()){
+      if(prof&&!['create_account','sign_in','whoami'].includes(fn)){   // the old session is gone, so the old sign-in is too
+        prof=null;T=null;unsubscribe();view='auth';render();toast('Your session expired. Please sign in again.');
+        const e=new Error('session expired');e.friendly='Your session expired. Please sign in again.';throw e;
+      }
+      return rpc(fn,args,quiet,false);
+    }
+    const msg=friendly(error);if(!quiet)toast(msg);
+    const e=new Error(msg);e.friendly=msg;e.original=error;throw e;
+  }
   return data;
 }
 const $$=v=>'$'+(Math.round(v*100)/100);
@@ -306,6 +333,7 @@ function authHTML(){
     ${nw?`<label>Confirm PIN</label><input id="pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••">
     <label>Your DUPR rating <span style="font-weight:400">(optional)</span></label><input id="dupr" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="e.g. 3.8">
     <div class="note" style="margin-top:4px">Starts your rating near your level instead of 3.5. It still counts as unproven, so it adjusts quickly if it's off. Can't be changed after your first rated game.</div>`:''}
+    <div id="autherr" class="err" role="alert" aria-live="polite"></div>
     <button class="sp" data-act="auth">${nw?'Create account':'Sign in'}</button>
     <div class="note">No email needed. Your username and PIN keep your tournament history on any phone. There's no PIN reset, so pick one you'll remember.</div></div>`;
 }
@@ -807,17 +835,35 @@ async function refresh(){
 const actions={
   mode(el){authMode=el.dataset.m;render();$('un')?.focus()},
   async auth(){
-    const u=($('un').value||'').trim(),p=$('pin').value||'';
-    if(u.length<2)return toast('Enter a username (2–20 characters)');
-    if(!/^\d{4,6}$/.test(p))return toast('PIN must be 4 to 6 digits');
+    const fail=(msg,id)=>{
+      const el=$('autherr');if(el)el.textContent=msg;
+      document.querySelectorAll('#app input.bad').forEach(x=>x.classList.remove('bad'));
+      if(id&&$(id)){$(id).classList.add('bad');$(id).focus()}
+    };
+    fail('');
+    const u=($('un').value||'').trim().replace(/ {2,}/g,' '),p=$('pin').value||'';
+    if(u.length<2)return fail('Username must be at least 2 characters.','un');
+    if(u.length>20)return fail('Username can be at most 20 characters.','un');
+    if(!/^[A-Za-z0-9 _.\-]+$/.test(u))return fail('Username can only use letters, numbers, spaces and . _ -','un');
+    if(!/^\d*$/.test(p))return fail('PIN can only be numbers.','pin');
+    if(p.length<4)return fail(`PIN is too short. Use 4 to 6 digits (you entered ${p.length}).`,'pin');
+    if(p.length>6)return fail('PIN is too long. Use 4 to 6 digits.','pin');
     let r;
-    if(authMode==='new'){
-      if(p!==$('pin2').value)return toast("PINs don't match");
-      const raw=($('dupr')?.value||'').trim();let dv=null;
-      if(raw!==''){dv=+raw;if(!(dv>=2&&dv<=6))return toast('DUPR must be between 2.0 and 6.0, or left blank')}
-      r=await rpc('create_account',{p_username:u,p_pin:p,p_dupr:dv});
-    }else r=await rpc('sign_in',{p_username:u,p_pin:p});
-    if(!r||!r.ok)return toast(r?.error||'Could not sign in');
+    try{
+      if(authMode==='new'){
+        if(p!==$('pin2').value)return fail("The two PINs don't match. Re-enter them.",'pin2');
+        const raw=($('dupr')?.value||'').trim();let dv=null;
+        if(raw!==''){dv=+raw;if(!(dv>=2&&dv<=6))return fail('DUPR must be between 2.0 and 6.0, or leave it blank.','dupr')}
+        r=await rpc('create_account',{p_username:u,p_pin:p,p_dupr:dv},true);
+      }else r=await rpc('sign_in',{p_username:u,p_pin:p},true);
+    }catch(err){return fail(err.friendly||'Something went wrong. Try again.')}
+    if(!r||!r.ok){
+      const map={username:'un',pin:'pin',dupr:'dupr'};
+      let msg=r?.error||'Could not sign in.';
+      if(/taken/i.test(msg))msg='That username is already taken. Pick another, or use the Sign in tab if it is yours.';
+      else if(/wrong username or pin/i.test(msg))msg='Wrong username or PIN. Check both and try again, or use the Create account tab if you are new. Five wrong tries locks the account for 15 minutes.';
+      return fail(msg,map[r?.field]||(/PIN/.test(msg)?'pin':'un'));
+    }
     const me=await rpc('whoami');
     prof={id:r.profile_id,username:r.username,start:me?.start_rating??null,locked:!!me?.locked};ls.set('pb_user',r.username);
     await loadMine();view='home';render();window.scrollTo(0,0);
@@ -950,6 +996,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('input',e=>{
   const t=e.target;
+  if(t.closest&&t.closest('#app')&&$('autherr')&&t.tagName==='INPUT'){$('autherr').textContent='';t.classList.remove('bad')}
   if(t.id==='tname')newName=t.value;
   else if(t.id==='twhen')newWhen=t.value;
   else if(t.id==='twhere')newWhere=t.value;
