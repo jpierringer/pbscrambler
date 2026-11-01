@@ -119,7 +119,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null;
+let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,games=[],pick={},editG='',needOpen=false,newKind='scramble',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 /* ---------- helpers ---------- */
 function toast(t){const e=$('toast');e.textContent=t;e.classList.remove('hide');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.add('hide'),3500)}
@@ -381,6 +381,7 @@ function eventDlgHTML(){
   return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
 }
 function playerDlgHTML(){
+  const nl=a=>(Array.isArray(a)?a:(a?[{n:String(a),a:false}]:[])).map(q=>pl(q.n,q.a));
   const x=plyr,rows=x.rows||[],me=String(x.u).toLowerCase()===String(prof.username).toLowerCase();
   const b=board.find(r=>String(r.username).toLowerCase()===String(x.u).toLowerCase()),rk=rankedNow(),pos=b&&b.ranked&&b.active?rk.indexOf(b)+1:0;
   const w=rows.filter(r=>r.won).length,l=rows.length-w;
@@ -390,9 +391,9 @@ function playerDlgHTML(){
   rows.forEach(r=>{
     const k=dayKey(r.at);if(k!==last){list+=`<div class="grp">${esc(k)}</div>`;last=k}
     const ev=(r.event?esc(r.event):r.kind==='open'?'Open play':'Scramble')+(r.round?` · round ${r.round}`:'');
-    list+=`<div class="mrow first" style="border-top:1px solid var(--bd);align-items:flex-start"><div><span class="badge" style="margin:0 8px 0 0;${r.won?'':'background:var(--bg);color:var(--neg)'}">${r.won?'W':'L'}</span><b>${r.pf}–${r.pa}</b> <span class="t">${r.partner?'with '+esc(r.partner):'solo'}</span> <span style="color:var(--mu)">vs ${esc(r.opps||'')}</span><div class="note" style="margin:2px 0 0">${ev}${r.rated?'':' · unrated'}</div></div></div>`;
+    list+=`<div class="mrow first" style="border-top:1px solid var(--bd);align-items:flex-start"><div><span class="badge" style="margin:0 8px 0 0;${r.won?'':'background:var(--bg);color:var(--neg)'}">${r.won?'W':'L'}</span><b>${r.pf}–${r.pa}</b> <span class="t">${nl(r.partner).length?'with '+nl(r.partner).join(' &amp; '):'solo'}</span> <span style="color:var(--mu)">vs ${nl(r.opps).join(' &amp; ')}</span><div class="note" style="margin:2px 0 0">${ev}${r.rated?'':' · unrated'}</div></div></div>`;
   });
-  return `<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${esc(String(x.u).trim().charAt(0).toUpperCase())}</div><div><h1 style="margin:0">${esc(b?.username||x.u)}${me?' <span class="badge">you</span>':''}</h1><div class="note" style="margin:2px 0 0">${b?(b.ranked?(b.active?'Ranked':'Inactive'):'Not ranked yet'):'No rating yet'}</div></div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>
+  return `${plyrBack.length?`<div style="margin-bottom:8px"><button class="del" data-act="pback" style="padding:2px 0">‹ Back to ${esc(plyrBack[plyrBack.length-1].u)}</button></div>`:''}<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${esc(String(x.u).trim().charAt(0).toUpperCase())}</div><div><h1 style="margin:0">${esc(b?.username||x.u)}${me?' <span class="badge">you</span>':''}</h1><div class="note" style="margin:2px 0 0">${b?(b.ranked?(b.active?'Ranked':'Inactive'):'Not ranked yet'):'No rating yet'}</div></div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>
   <div class="stats" style="margin-bottom:14px">${tile(b?(+b.rating).toFixed(2):'–','Rating')}${tile(pos?'#'+pos+' of '+rk.length:'–','Rank')}${tile(rows.length?w+'–'+l:'–','Record')}</div>
   <div class="card"><h2>Game history${rows.length>=100?' <span class="note" style="font-weight:400">· last 100</span>':''}</h2>${list||`<div class="note" style="margin-top:0">No scored games yet. Guests and players without an account don't have a history.</div>`}</div>`;
 }
@@ -830,8 +831,10 @@ const actions={
   async player(el){
     const u=el.dataset.u;if(!u)return;
     const rows=await rpc('player_games',{p_username:u,p_limit:100});
+    if(dlg==='player'&&plyr&&plyr.u!==u)plyrBack.push(plyr);else if(dlg!=='player')plyrBack=[];
     plyr={u,rows:Array.isArray(rows)?rows:[]};dlg='player';renderModal();
   },
+  pback(){plyr=plyrBack.pop()||plyr;renderModal()},
   async feedopen(el){
     if(el.dataset.mine==='1'){if(!await openT(el.dataset.id))toast('Could not open that event');return}
     const r=await rpc('event_info',{p_id:el.dataset.id});
@@ -847,7 +850,7 @@ const actions={
   },
   rencancel(){renaming=false;render()},
   dopen(el){dlg=el.dataset.d;renderModal()},
-  dclose(){dlg='';renderModal()},
+  dclose(){dlg='';plyrBack=[];renderModal()},
   pastall(){showAllPast=!showAllPast;render()},
   async create(){
     const r=await rpc('create_tournament',{p_kind:newKind,p_money:newKind==='open'?false:newMoney,p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
