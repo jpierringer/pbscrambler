@@ -183,6 +183,9 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
+const APP_VERSION='v21 · Nov 4, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
+console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
 const unit=()=>isSeries()?'Game':'Round';
 const fmtName=x=>x.kind==='open'?'Open play':x.format==='series'?'4-player series':'Scramble';
@@ -398,7 +401,7 @@ function authHTML(){
     <div class="note" style="margin-top:4px">Starts your rating near your level instead of 3.5. It still counts as unproven, so it adjusts quickly if it's off. Can't be changed after your first rated game.</div>`:''}
     <div id="autherr" class="err" role="alert" aria-live="polite"></div>
     <button class="sp" data-act="auth">${nw?'Create account':'Sign in'}</button>
-    ${nw?'':'<div style="text-align:center;margin-top:8px"><button class="del" data-act="forgot">Forgot your PIN?</button></div>'}<div class="note">No email needed. Your username and PIN keep your tournament history on any phone. You can add a recovery email and a display name later in your profile.</div></div>`;
+    ${nw?'':'<div style="text-align:center;margin-top:8px"><button class="del" data-act="forgot">Forgot your PIN?</button></div>'}<div class="note">No email needed. Your username and PIN keep your tournament history on any phone. You can add a recovery email and a display name later in your profile.</div></div>${verTag()}`;
 }
 
 const pl=(n,p)=>p&&n?`<span class="plink" data-act="player" data-u="${esc(p)}">${esc(n)}</span>`:esc(n);
@@ -514,7 +517,7 @@ function profileDlgHTML(){
       <div class="row"><input id="dupr2" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="Your DUPR, e.g. 3.8" value="${prof.start??''}"><button data-act="setstart" style="flex:0 0 90px">Save</button></div>
       <div class="note">You can set or change this until your first rated game. It starts your rating near your level instead of 3.5, and still counts as unproven, so it adjusts quickly if it's off.</div></div>`
     :`<div class="card"><h2>Starting rating</h2><div class="note" style="margin-top:0">Locked${prof.start!=null?` at <b>${(+prof.start).toFixed(2)}</b>`:' at the default 3.5'}. It can't be changed after your first rated game.</div></div>`;
-  return `<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${avatarInit()}</div><div><h1 style="margin:0">${esc(myName())}</h1>${prof.display?`<div class="note" style="margin:0">@${esc(prof.username)}</div>`:''}<button class="del" data-act="signout" style="padding:2px 0">Sign out</button></div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${rating}${accountCardHTML()}${start}${statsHTML()}`;
+  return `<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${avatarInit()}</div><div><h1 style="margin:0">${esc(myName())}</h1>${prof.display?`<div class="note" style="margin:0">@${esc(prof.username)}</div>`:''}<button class="del" data-act="signout" style="padding:2px 0">Sign out</button></div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${rating}${accountCardHTML()}${start}${statsHTML()}${verTag()}`;
 }
 function accountCardHTML(){
   const line=(k,v)=>`<div class="mrow first" style="border-top:1px solid var(--bd)"><span class="note" style="margin:0">${k}</span><span style="text-align:right">${v}</span></div>`;
