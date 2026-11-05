@@ -40,6 +40,7 @@ button.sm{width:auto;padding:6px 12px;font-size:13px}
 .match.mine{background:var(--ac2);border-radius:10px;padding:10px;border-bottom:0}
 .match .ct{grid-column:1/-1;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
 .match .vs{grid-column:1/-1;text-align:center;color:var(--mu);font-size:12px;margin:-2px 0}
+.match .fixnote{grid-column:1/-1;font-size:12px;color:var(--gold);background:var(--card);border:1px dashed var(--gold);border-radius:8px;padding:6px 8px}
 .match .foot{grid-column:1/-1;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--mu)}
 .match .foot button{width:auto;padding:8px 14px;font-size:14px}
 .match input{text-align:center;font-weight:700;font-size:18px}
@@ -142,7 +143,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[];
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -202,6 +203,8 @@ function bump(el,d){
   const v=Math.max(0,Math.min(99,(parseInt(inp?.value,10)||0)+d));
   drafts[k]=String(v);if(inp)inp.value=String(v);
 }
+/* a correction is recorded on the game itself, so everyone in it (and the director) can see that the score was altered */
+const fixNote=m=>m&&m.fix?`<div class="fixnote">✎ Score corrected by <b>${esc(m.fix.by)}</b> · was ${esc(m.fix.was)}${m.fix.n>1?` (first entered ${esc(m.fix.first)}, ${m.fix.n} corrections)`:''} · ${esc(ago(m.fix.at))}</div>`:'';
 const filled=m=>m.sa!==''&&m.sb!=='';
 const myIdx=()=>(T&&T.pids&&prof)?T.pids.indexOf(prof.id):-1;
 const myMember=()=>M.find(m=>m.profile_id&&prof&&m.profile_id===prof.id);
@@ -209,7 +212,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v23 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v25 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -732,7 +735,7 @@ function playHTML(){
   ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
 }
 function renderTabs(){
-  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:'Round '+(i+1)}</button>`).join('');
+  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:'Round '+(i+1)}${r.some(m=>m.fix)?' ✎':''}</button>`).join('');
 }
 function byesOf(ri){const on=new Set();T.rounds[ri].forEach(m=>[...m.a,...m.b].forEach(i=>on.add(i)));return T.players.map((_,i)=>i).filter(i=>!on.has(i))}
 function byeHTML(ri){
@@ -753,13 +756,14 @@ function renderRound(){
     const conf=confirmKey===`${ri}-${j}`;
     const box=s=>edit?`<div class="step"><button data-act="sdec" data-m="${j}" data-s="${s}" aria-label="One less"${conf?' disabled':''}>−</button><input type="number" inputmode="numeric" min="0" max="999" data-m="${j}" data-s="${s}" value="${val(s)}" placeholder="0" aria-label="Score"${conf?' disabled':''}><button data-act="sinc" data-m="${j}" data-s="${s}" aria-label="One more"${conf?' disabled':''}>+</button>${cash()?`<button class="eleven" data-act="s11" data-m="${j}" data-s="${s}" aria-label="This team won with 11"${conf?' disabled':''}>11</button>`:''}</div>`:`<div class="sc">${m[s]===''?'–':esc(m[s])}</div>`;
     let foot='';
-    if(edit&&conf)foot=`<div class="confirm"><b>${team(m.a)} ${esc(drafts[`${ri}-${j}-sa`]??m.sa)} – ${esc(drafts[`${ri}-${j}-sb`]??m.sb)} ${team(m.b)}</b><div class="note" style="margin:2px 0 0">Is that right? Everyone sees it right away.</div><div class="row"><button data-act="submitok" data-m="${j}">Yes, submit</button><button class="sec" data-act="submitedit">Fix it</button></div></div>`;
-    else if(edit)foot=`<div class="foot"><button data-act="submit" data-m="${j}">${filled(m)?'Update score':'Submit score'}</button>${filled(m)&&m.by?`<span>Entered by ${esc(m.by)}</span>`:''}</div>`;
+    const cd=(drafts[`${ri}-${j}-sa`]??m.sa),cb=(drafts[`${ri}-${j}-sb`]??m.sb),isFix=filled(m)&&(+cd!==+m.sa||+cb!==+m.sb);
+    if(edit&&conf)foot=`<div class="confirm"><b>${team(m.a)} ${esc(cd)} – ${esc(cb)} ${team(m.b)}</b><div class="note" style="margin:2px 0 0">${isFix?`This changes the score from ${esc(m.sa)}–${esc(m.sb)}. The other players in this game will see that it was corrected, and by whom.`:'Is that right? Everyone sees it right away.'}</div><div class="row"><button data-act="submitok" data-m="${j}">${isFix?'Yes, correct it':'Yes, submit'}</button><button class="sec" data-act="submitedit">${isFix?'Keep '+esc(m.sa)+'–'+esc(m.sb):'Fix it'}</button></div></div>`;
+    else if(edit)foot=`<div class="foot"><button data-act="submit" data-m="${j}">${filled(m)?'Correct score':'Submit score'}</button>${filled(m)&&m.by?`<span>Entered by ${esc(m.by)}</span>`:''}</div>`;
     else if(filled(m)&&m.by)foot=`<div class="foot"><span>Final · entered by ${esc(m.by)}</span></div>`;
     else if(!filled(m)&&ri+1===T.current_round&&T.status==='playing')foot=`<div class="foot"><span>Waiting for score</span></div>`;
     return `<div class="match${mineM?' mine':''}">${R.length>1?`<div class="ct">Court ${j+1}</div>`:''}<div class="t">${team(m.a)}</div>${box('sa')}
     <div class="vs">${mineM?'your game · ':''}vs</div>
-    <div class="t">${team(m.b)}</div>${box('sb')}${foot}</div>`;
+    <div class="t">${team(m.b)}</div>${box('sb')}${foot}${fixNote(m)}</div>`;
   }).join('')+byeHTML(ri);
 }
 function renderBanner(){
@@ -778,7 +782,7 @@ function renderBanner(){
     el.innerHTML=`<div class="mybn"><div class="k">Your game now</div><div class="v">${lab(cr-1,j,m)}</div><div class="v" style="font-weight:600">${x.pt?'with '+x.pt+' · ':''}vs ${x.op}</div>${nx}<button data-act="goscore">Enter your score</button></div>`;
   }else if(m){
     const wait=R.filter(g=>!filled(g)).map(g=>`${team(g.a)} vs ${team(g.b)}`);
-    el.innerHTML=`<div class="mybn quiet"><div class="k">Your score is in ✓</div><div class="v" style="font-weight:600">${wait.length?'Waiting for '+wait.join(' · ')+'. The next '+unit().toLowerCase()+' starts automatically.':'All scores are in.'}</div>${nx}</div>`;
+    el.innerHTML=`<div class="mybn quiet"><div class="k">Your score is in ✓</div><div class="v" style="font-weight:600">${wait.length?'Waiting for '+wait.join(' · ')+'. The next '+unit().toLowerCase()+' starts automatically.':'All scores are in.'}</div>${m.fix?`<div class="nx" style="color:var(--gold)">✎ This score was corrected by ${esc(m.fix.by)} (was ${esc(m.fix.was)}).</div>`:''}${nx}</div>`;
   }else{
     el.innerHTML=`<div class="mybn quiet"><div class="k">You're sitting out this ${unit().toLowerCase()}</div><div class="v" style="font-weight:600">Cheer on the others and watch the scores come in.</div>${nx}</div>`;
   }
@@ -801,7 +805,8 @@ function renderCtl(){
   if(waiting.length)h+=`<div class="note">Still playing: ${waiting.join(' · ')}</div>`;
   const auto=last?'':` The next ${unit().toLowerCase()} starts by itself once every game has a score.`;
   if(isAdmin()){
-    if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'Finish tournament':'Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
+    if(last&&done&&finAsk)h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>Finish this tournament?</b><div class="note" style="margin:6px 0 0">Scores can't be changed after this. Payouts and ratings are final.</div><div class="row" style="margin-top:8px"><button data-act="finishok">Yes, finish</button><button class="sec" data-act="finishno">Not yet</button></div></div>`;
+    else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'Finish tournament':'Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
     if(!done)h+=`<div class="note">${last?'Finish unlocks when every game has a score.':`The next ${unit().toLowerCase()} starts by itself once every game has a score.`} You can enter or fix any score yourself.</div>`;
   }else{
     h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':unit()+' complete. Waiting for the director to start '+unit().toLowerCase()+' '+(cr+1)+'.'):'Enter your score as soon as your game ends.'+auto}</div>`;
@@ -840,7 +845,7 @@ function doneGamesHTML(){
     const bye=byesOf(ri);
     return `<div class="grp">${isSeries()&&R[0].s?`Series ${R[0].s} · Game ${R[0].g}`:'Round '+(ri+1)}</div>`+R.map(m=>{
       const sa=+m.sa,sb=+m.sb,mine=!!prof&&[...m.a,...m.b].some(i=>T.pids?.[i]===prof.id);
-      return `<div class="mrow first" style="border-top:1px solid var(--bd)${mine?';background:var(--ac2);border-radius:8px;padding-left:6px;padding-right:6px':''}"><div>${side(m.a,sa>sb)} <b>${esc(m.sa)}</b> – <b>${esc(m.sb)}</b> ${side(m.b,sb>sa)}</div></div>`;
+      return `<div class="mrow first" style="border-top:1px solid var(--bd)${mine?';background:var(--ac2);border-radius:8px;padding-left:6px;padding-right:6px':''}"><div>${side(m.a,sa>sb)} <b>${esc(m.sa)}</b> – <b>${esc(m.sb)}</b> ${side(m.b,sb>sa)}${m.fix?` <span class="note" style="margin:0;color:var(--gold)" title="Corrected by ${esc(m.fix.by)}, was ${esc(m.fix.was)}">✎ corrected (was ${esc(m.fix.first||m.fix.was)})</span>`:''}</div></div>`;
     }).join('')+(bye.length?`<div class="note" style="margin:2px 0 0">Sat out: ${bye.map(nm).join(', ')}</div>`:'');
   }).join('')+`</div>`;
 }
@@ -1022,7 +1027,9 @@ async function refresh(){
     if(error)return;
     if(!data){toast("You're no longer in this tournament");await goHome();return}
     const wasAdmin=isAdmin(),oldCR=T.current_round;
-    T=data;await loadMembers();if(T.kind==='open')await loadGames();
+    const oldFix=new Map();(T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix)oldFix.set(ri+'-'+j,m.fix.at)}));
+    T=data;await loadMembers();
+    (T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix&&oldFix.get(ri+'-'+j)!==m.fix.at&&m.fix.by!==prof?.username&&view==='play')toast(`✎ ${m.fix.by} corrected a score: ${[...m.a].map(i=>T.players[i]).join(' & ')} ${m.sa}–${m.sb} ${[...m.b].map(i=>T.players[i]).join(' & ')} (was ${m.fix.was})`)}));if(T.kind==='open')await loadGames();
     if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(`${unit()} ${T.current_round} has started`)}
     const v=viewFor(T.status);
     if(v!==view||wasAdmin!==isAdmin()){view=v;if(v==='play')cur=Math.min(cur,T.current_round-1);render();return}
@@ -1264,12 +1271,16 @@ const actions={
     confirmKey='';
     await rpc('submit_score',{p_tid:T.id,p_round:ri+1,p_match:j,p_sa:sa,p_sb:sb2});
     delete drafts[`${ri}-${j}-sa`];delete drafts[`${ri}-${j}-sb`];
-    T.rounds[ri][j]={...T.rounds[ri][j],sa:String(+sa),sb:String(+sb2),by:prof.username};
-    renderTabs();renderRound();renderCtl();renderStand();toast('Score submitted');
+    const prev=T.rounds[ri][j],was=filled(prev),chg=was&&(+prev.sa!==+sa||+prev.sb!==+sb2);
+    T.rounds[ri][j]={...prev,sa:String(+sa),sb:String(+sb2),...(was?{}:{by:prof.username}),...(chg?{fix:{by:prof.username,at:new Date().toISOString(),was:prev.sa+'–'+prev.sb,first:prev.fix?.first||prev.sa+'–'+prev.sb,n:(prev.fix?.n||0)+1}}:{})};
+    renderTabs();renderRound();renderCtl();renderStand();toast(chg?'Score corrected. The others in this game can see it.':'Score submitted');
     if(isSeries()||(ri+1===T.current_round&&allIn(T.rounds[ri])))await refresh();
   },
   async nextround(){await rpc('next_round',{p_tid:T.id});await refresh();cur=T.current_round-1;renderPlayBody();window.scrollTo(0,0)},
-  async finish(){
+  finish(){finAsk=true;renderCtl()},
+  finishno(){finAsk=false;renderCtl()},
+  async finishok(){
+    finAsk=false;
     const st=standings(),p=cash()?payoutsFor(T.players.length,+T.fee||0):[];
     const result=st.map((x,i)=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:i<p.length?p[i]:0,...(isSeries()?{sw:x.sw,gw:x.gw,g:x.g}:{})}));
     await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
