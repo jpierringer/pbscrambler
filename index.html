@@ -104,6 +104,7 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .avatar.lg{width:56px;height:56px;font-size:24px;cursor:default}
 .avatar .dot{position:absolute;top:-1px;right:-1px;width:13px;height:13px;border-radius:50%;background:var(--gold);border:2px solid var(--bg)}
 .row.acct button{flex:1 1 44%}
+.dot-inline{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--gold);margin-left:4px;vertical-align:middle}
 .pbtn{background:none;color:var(--tx);width:auto;padding:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:700;flex:none}
 .fab{position:fixed;right:max(16px,calc(50% - 264px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:auto;height:52px;border-radius:26px;padding:0 22px;font-size:17px;line-height:1;font-weight:700;display:flex;align-items:center;gap:8px;box-shadow:0 4px 14px rgba(0,0,0,.28);z-index:6}
 .live{background:var(--ac2);border-color:var(--ac)}
@@ -145,7 +146,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[];
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -214,7 +215,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v30 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v32 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -497,7 +498,9 @@ function tlRow(t){
   return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${t.name?esc(t.name):dt}</b> <span>· ${t.name?dt+' · ':''}${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span>${t.status!=='done'&&t.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(t.starts_at))}${t.location?' · 📍 '+esc(t.location):''}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`;
 }
 function homeHTML(){
-  const live=mine.filter(t=>t.status!=='done'),past=mine.filter(t=>t.status==='done');
+  const live=mine.filter(t=>t.status==='playing'),past=mine.filter(t=>t.status==='done');
+  /* not started yet: soonest planned start first, events without a planned time after those, newest first */
+  const soon=mine.filter(t=>t.status==='lobby').sort((a,b)=>(a.starts_at?0:1)-(b.starts_at?0:1)||(a.starts_at&&b.starts_at?new Date(a.starts_at)-new Date(b.starts_at):new Date(b.created_at)-new Date(a.created_at)));
   let h=`<div class="hdr"><h1>${LOGO}Pickleball Scrambler</h1>
     <button class="pbtn" data-act="dopen" data-d="profile" aria-label="Your profile"><span class="avatar">${avatarInit()}${canSetStart()&&prof.start==null?'<span class="dot" title="You can set your starting rating"></span>':''}</span><span>Profile</span></button></div>`;
   if(pendingCode){
@@ -507,8 +510,19 @@ function homeHTML(){
       <button data-act="join">Join as ${esc(myName())}</button>
       <div style="text-align:center;margin-top:8px"><button class="del" data-act="noinvite">Not this one? Go back</button></div></div>`;
   }
+  const comm=trendingHTML()+feedHTML()+nearbyHTML();
+  const tab=pendingCode?'home':homeTab;
+  if(!pendingCode)h+=`<div class="tabs" role="tablist" style="margin-top:4px">
+    <button class="${tab==='home'?'on':''}" role="tab" data-act="htab" data-v="home"><span aria-hidden="true">🏠</span> Home</button>
+    <button class="${tab==='community'?'on':''}" role="tab" data-act="htab" data-v="community"><span aria-hidden="true">👥</span> Community${nearPrompt()?' <span class="dot-inline" title="Finish your profile"></span>':''}</button></div>`;
+  if(tab==='community'){
+    h+=comm||`<div class="card"><h2>Community</h2><div class="note" style="margin-top:0">Nothing here yet. Players who climb the ratings, events starting around the club and players near you will show up here.</div></div>`;
+    if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join an event"><span aria-hidden="true">＋</span> Event</button><div style="height:76px"></div>`;
+    return h;
+  }
   if(live.length)h+=`<div class="card live"><h2><span class="pulse"></span>Live now</h2>${live.map(tlRow).join('')}</div>`;
-  h+=boardCardHTML()+trendingHTML()+feedHTML()+nearbyHTML();
+  if(soon.length)h+=`<div class="card"><h2><span aria-hidden="true">📅</span> Upcoming events</h2>${soon.map(tlRow).join('')}</div>`;
+  h+=boardCardHTML();
   if(past.length){
     const shown=showAllPast?past:past.slice(0,8);
     h+=`<div class="card"><h2>Past events</h2>${shown.map(tlRow).join('')}${past.length>8?`<div style="text-align:center;margin-top:8px"><button class="del" data-act="pastall"><span aria-hidden="true">📜</span> ${showAllPast?'Show fewer':'Show all '+past.length}</button></div>`:''}</div>`;
@@ -519,11 +533,12 @@ function homeHTML(){
   return h;
 }
 
+/* the "Finish your profile" nudge: offered only once someone has finished an event, never during first-run */
+function nearPrompt(){return !!prof&&!prof.pub&&ls.get('pb_nonear')!=='1'&&mine.some(t=>t.status==='done')}
 function nearbyHTML(){
   if(!prof)return '';
   if(!prof.pub){
-    /* optional extras are offered only once someone has finished a game, never during first-run */
-    if(ls.get('pb_nonear')==='1'||!mine.some(t=>t.status==='done'))return '';
+    if(!nearPrompt())return '';
     const missing=[!prof.display&&'a display name',!prof.city&&'your city and state',!prof.email&&'a recovery email'].filter(Boolean);
     const list=missing.length>1?missing.slice(0,-1).join(', ')+' and '+missing.slice(-1):missing[0];
     const body=missing.length?`Nice first game! Add ${list} if you like. All optional, and your location is only shared if you choose.`:'Turn on <b>Let players in my state find me</b> to see other players near you.';
@@ -1093,6 +1108,7 @@ const actions={
   mode(el){authMode=el.dataset.m;fgStep='email';render();$('un')?.focus()},
   forgot(){authMode='forgot';fgStep='email';render();$('fe')?.focus()},
   nonear(){ls.set('pb_nonear','1');render()},
+  htab(el){homeTab=el.dataset.v;render();window.scrollTo(0,0)},
   async psave(){
     const v=id=>($(id)?.value||'').trim();
     const city=v('pcity'),st=v('pstate');
