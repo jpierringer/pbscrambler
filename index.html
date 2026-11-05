@@ -54,6 +54,7 @@ button.sm{width:auto;padding:6px 12px;font-size:13px}
 .match .confirm .row{margin-top:8px}
 .mybn{background:var(--ac2);border:1px solid var(--ac);border-radius:14px;padding:12px 14px;margin-bottom:14px}
 .mybn .k{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ac)}
+.mybn .court{font-size:30px;font-weight:800;line-height:1.1;margin:2px 0 0;color:var(--ac)}
 .mybn .v{font-weight:700;font-size:16px;margin:2px 0 0}
 .mybn .nx{font-size:13px;color:var(--mu);margin-top:6px}
 .mybn button{margin-top:10px}
@@ -104,6 +105,8 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .avatar.lg{width:56px;height:56px;font-size:24px;cursor:default}
 .avatar .dot{position:absolute;top:-1px;right:-1px;width:13px;height:13px;border-radius:50%;background:var(--gold);border:2px solid var(--bg)}
 .row.acct button{flex:1 1 44%}
+.qrbox{display:inline-block;background:#fff;border-radius:12px;padding:6px;border:1px solid var(--bd);line-height:0}
+.qrbox svg{display:block}
 .dot-inline{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--gold);margin-left:4px;vertical-align:middle}
 .pbtn{background:none;color:var(--tx);width:auto;padding:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:700;flex:none}
 .fab{position:fixed;right:max(16px,calc(50% - 264px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:auto;height:52px;border-radius:26px;padding:0 22px;font-size:17px;line-height:1;font-weight:700;display:flex;align-items:center;gap:8px;box-shadow:0 4px 14px rgba(0,0,0,.28);z-index:6}
@@ -146,7 +149,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[];
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -215,7 +218,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v32 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v34 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -408,6 +411,68 @@ function tieNotes(rows,c){
 }
 const team=t=>t.map(i=>esc(T.players[i])).join(' &amp; ');
 const link=()=>location.href.split('#')[0].split('?')[0]+'?t='+T.code;
+/* ---------- QR code for the invite link (no outside library; verified against a phone-style decoder) ---------- */
+/* Minimal QR code encoder: byte mode, error correction level M, versions 1 to 10 (up to 213 bytes). Returns a matrix of 0/1, or null if the text is too long. */
+function qrMatrix(text){
+  const bytes=Array.from(new TextEncoder().encode(text));
+  /* [EC codewords per block, [blocks, data codewords per block], ...] for level M, versions 1..10 */
+  const SPEC=[null,[10,[1,16]],[16,[1,28]],[26,[1,44]],[18,[2,32]],[24,[2,43]],[16,[4,27]],[18,[4,31]],[22,[2,38],[2,39]],[22,[3,36],[2,37]],[26,[4,43],[1,44]]];
+  const ALIGN=[null,[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
+  const dataCw=v=>SPEC[v].slice(1).reduce((a,b)=>a+b[0]*b[1],0);
+  let ver=0;for(let v=1;v<=10;v++){const lenBits=v<10?8:16;if(bytes.length*8+4+lenBits<=dataCw(v)*8){ver=v;break}}
+  if(!ver)return null;
+  /* data bits */
+  const bits=[];const put=(val,n)=>{for(let i=n-1;i>=0;i--)bits.push((val>>>i)&1)};
+  put(4,4);put(bytes.length,ver<10?8:16);bytes.forEach(b=>put(b,8));
+  const cap=dataCw(ver)*8;put(0,Math.min(4,cap-bits.length));while(bits.length%8)bits.push(0);
+  const data=[];for(let i=0;i<bits.length;i+=8){let x=0;for(let j=0;j<8;j++)x=x<<1|bits[i+j];data.push(x)}
+  for(let p=0;data.length<dataCw(ver);p++)data.push(p%2?0x11:0xEC);
+  /* Reed-Solomon over GF(256), polynomial 0x11D */
+  const EXP=new Array(512),LOG=new Array(256);let x=1;for(let i=0;i<255;i++){EXP[i]=x;LOG[x]=i;x<<=1;if(x&256)x^=0x11D}for(let i=255;i<512;i++)EXP[i]=EXP[i-255];
+  const mul=(a,b)=>a&&b?EXP[LOG[a]+LOG[b]]:0;
+  const ecn=SPEC[ver][0];let gen=[1];for(let i=0;i<ecn;i++){const n=new Array(gen.length+1).fill(0);for(let j=0;j<gen.length;j++){n[j]^=gen[j];n[j+1]^=mul(gen[j],EXP[i])}gen=n}
+  const blocks=[];let pos=0;SPEC[ver].slice(1).forEach(([nb,dl])=>{for(let b=0;b<nb;b++){const d=data.slice(pos,pos+dl);pos+=dl;const r=d.concat(new Array(ecn).fill(0));for(let i=0;i<dl;i++){const f=r[i];if(f)for(let j=0;j<gen.length;j++)r[i+j]^=mul(gen[j],f)}blocks.push({d,e:r.slice(dl)})}});
+  const out=[];const maxd=Math.max(...blocks.map(b=>b.d.length));
+  for(let i=0;i<maxd;i++)blocks.forEach(b=>{if(i<b.d.length)out.push(b.d[i])});
+  for(let i=0;i<ecn;i++)blocks.forEach(b=>out.push(b.e[i]));
+  const stream=[];out.forEach(c=>{for(let i=7;i>=0;i--)stream.push((c>>i)&1)});
+  /* matrix with function patterns */
+  const N=17+4*ver;const M=Array.from({length:N},()=>new Array(N).fill(0));const F=Array.from({length:N},()=>new Array(N).fill(false));
+  const set=(r,c,v)=>{M[r][c]=v?1:0;F[r][c]=true};
+  const finder=(r0,c0)=>{for(let r=-1;r<=7;r++)for(let c=-1;c<=7;c++){const rr=r0+r,cc=c0+c;if(rr<0||cc<0||rr>=N||cc>=N)continue;const on=r>=0&&r<=6&&c>=0&&c<=6&&(r==0||r==6||c==0||c==6||(r>=2&&r<=4&&c>=2&&c<=4));set(rr,cc,on)}};
+  finder(0,0);finder(0,N-7);finder(N-7,0);
+  for(let i=8;i<N-8;i++){set(6,i,i%2==0);set(i,6,i%2==0)}
+  const al=ALIGN[ver];for(const r of al)for(const c of al){if((r==6&&c==6)||(r==6&&c==al[al.length-1])||(r==al[al.length-1]&&c==6))continue;for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++)set(r+dr,c+dc,Math.max(Math.abs(dr),Math.abs(dc))!=1)}
+  set(N-8,8,1);
+  for(let i=0;i<9;i++){if(!F[8][i])set(8,i,0);if(!F[i][8])set(i,8,0)}for(let i=0;i<8;i++){if(!F[8][N-1-i])set(8,N-1-i,0);if(!F[N-1-i][8])set(N-1-i,8,0)}
+  if(ver>=7)for(let i=0;i<6;i++)for(let j=0;j<3;j++){set(i,N-11+j,0);set(N-11+j,i,0)}
+  /* place data */
+  let bi=0;
+  let up=true;for(let c=N-1;c>0;c-=2){if(c==6)c=5;for(let k=0;k<N;k++){const rr=up?N-1-k:k;for(let d=0;d<2;d++){const cc=c-d;if(F[rr][cc])continue;M[rr][cc]=bi<stream.length?stream[bi]:0;bi++}}up=!up}
+  /* masks */
+  const MASKS=[(r,c)=>(r+c)%2==0,(r,c)=>r%2==0,(r,c)=>c%3==0,(r,c)=>(r+c)%3==0,(r,c)=>(((r>>1)+Math.floor(c/3))%2)==0,(r,c)=>(r*c)%2+(r*c)%3==0,(r,c)=>((r*c)%2+(r*c)%3)%2==0,(r,c)=>(((r+c)%2)+((r*c)%3))%2==0];
+  const bch=(v,poly,deg)=>{let r=v<<deg;const pl=Math.floor(Math.log2(poly));for(let i=Math.floor(Math.log2(r||1));i>=pl;i--)if((r>>i)&1)r^=poly<<(i-pl);return r};
+  const apply=m=>{const A=M.map(r=>r.slice());for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!F[r][c]&&MASKS[m](r,c))A[r][c]^=1;
+    const fmt=((0<<3|m)<<10|bch(0<<3|m,0x537,10))^0x5412;const fb=i=>(fmt>>i)&1;
+    for(let i=0;i<=5;i++)A[i][8]=fb(i);A[7][8]=fb(6);A[8][8]=fb(7);A[8][7]=fb(8);for(let i=9;i<15;i++)A[8][14-i]=fb(i);
+    for(let i=0;i<8;i++)A[8][N-1-i]=fb(i);for(let i=8;i<15;i++)A[N-15+i][8]=fb(i);A[N-8][8]=1;
+    if(ver>=7){const vi=ver<<12|bch(ver,0x1F25,12);for(let i=0;i<18;i++){const b=(vi>>i)&1,a=Math.floor(i/3),d=i%3;A[a][N-11+d]=b;A[N-11+d][a]=b}}
+    return A};
+  const penalty=A=>{let p=0;for(let pass=0;pass<2;pass++){for(let i=0;i<N;i++){let run=1;for(let j=1;j<N;j++){const a=pass?A[j][i]:A[i][j],b=pass?A[j-1][i]:A[i][j-1];if(a==b){run++;if(run==5)p+=3;else if(run>5)p++}else run=1}}}
+    for(let r=0;r<N-1;r++)for(let c=0;c<N-1;c++){const v=A[r][c];if(v==A[r][c+1]&&v==A[r+1][c]&&v==A[r+1][c+1])p+=3}
+    const pat=[1,0,1,1,1,0,1,0,0,0,0],rev=pat.slice().reverse();
+    for(let i=0;i<N;i++)for(let j=0;j<=N-11;j++){let a=true,b=true,c=true,d=true;for(let k=0;k<11;k++){if(A[i][j+k]!=pat[k])a=false;if(A[i][j+k]!=rev[k])b=false;if(A[j+k][i]!=pat[k])c=false;if(A[j+k][i]!=rev[k])d=false}if(a||b)p+=40;if(c||d)p+=40}
+    let dark=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++)dark+=A[r][c];p+=Math.floor(Math.abs(dark*20/(N*N)-10))*10;return p};
+  let best=null,bp=1e9;for(let m=0;m<8;m++){const A=apply(m),p=penalty(A);if(p<bp){bp=p;best=A}}
+  return best;
+}
+/* An SVG of the code with the 4-module quiet zone, black on white. */
+function qrSVG(text,px){
+  const A=qrMatrix(text);if(!A)return '';const N=A.length,Q=4;let d='';
+  for(let r=0;r<N;r++){let c=0;while(c<N){if(A[r][c]){let e=c;while(e<N&&A[r][e])e++;d+=`M${c+Q} ${r+Q}h${e-c}v1h${-(e-c)}z`;c=e}else c++}}
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${N+2*Q} ${N+2*Q}" width="${px||200}" height="${px||200}" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
 
 /* ---------- my stats (from finished events) ---------- */
 function myResults(){
@@ -497,6 +562,55 @@ function tlRow(t){
   const dt=new Date(t.created_at).toLocaleDateString();
   return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${t.name?esc(t.name):dt}</b> <span>· ${t.name?dt+' · ':''}${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span>${t.status!=='done'&&t.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(t.starts_at))}${t.location?' · 📍 '+esc(t.location):''}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`;
 }
+/* "What's next for you": one line per event you are in, most urgent first. p: 1 = you are needed now, 5 = just waiting. */
+function todoList(){
+  if(!prof)return [];
+  const it=[];
+  const nm=(t,a)=>a.map(i=>esc(t.players[i])).join(' &amp; ');
+  const when=t=>[t.starts_at?'📅 '+esc(fmtWhen(t.starts_at)):'',t.location?'📍 '+esc(t.location):''].filter(Boolean).join(' · ');
+  mine.filter(t=>t.status!=='done').forEach(t=>{
+    const title=t.name?esc(t.name):t.kind==='open'?'Open play':fmtName(t),adm=t.admin_id===prof.id;
+    const mem=actMem[t.id]||[],my=mem.find(x=>x.profile_id===prof.id),ok=mem.filter(x=>x.approved).length,wait=mem.length-ok;
+    const add=(p,icon,h,sub,b,go)=>it.push({p,id:t.id,icon,title,h,sub,b,go});
+    if(t.status==='lobby'){
+      if(adm&&wait)add(2,'✅',`${wait} player${wait==1?'':'s'} waiting for your approval`,`Approve players once they have paid and arrived. ${ok} approved so far.`,'Review players');
+      else if(adm)add(4,'👥',`${ok} player${ok==1?'':'s'} in the lobby`,[when(t),'Start the event when everyone has arrived.'].filter(Boolean).join(' · '),'Open lobby');
+      else if(my&&!my.approved&&t.kind!=='open'&&t.money!==false)add(3,'💵','Pay your entry fee to the director',`You are in the lobby. The director approves you once you have paid${+t.fee?' ('+$$(+t.fee)+')':''}.`,'Open event');
+      else add(5,'⏳',"You're in. Waiting for the director to start",when(t)||'You will see your court here as soon as the first round starts.','Open event');
+      return;
+    }
+    if(t.kind==='open'){
+      const g=openG.find(x=>x.tournament_id===t.id&&[...x.a,...x.b].some(q=>q.p===prof.id));
+      if(g)add(1,'🏓','Your game is on',`${(g.a||[]).map(q=>esc(q.n)).join(' &amp; ')} vs ${(g.b||[]).map(q=>esc(q.n)).join(' &amp; ')}`,'Enter score');
+      else add(4,'🏓','Open play is live','Start a game when four players and a court are free.','Open');
+      return;
+    }
+    if(!t.rounds||!t.pids){add(5,'🏓','In progress','','Open event');return}
+    const cr=t.current_round,R=t.rounds[cr-1]||[],me=t.pids.indexOf(prof.id),ser=t.format==='series';
+    const lab=m=>ser&&m.s?`Series ${m.s} · Game ${m.g}`:`Round ${cr}`;
+    const done=R.length>0&&R.every(filled),last=cr===t.rounds.length;
+    if(adm&&done&&last)add(2,'🏁','Every score is in',"Finish the event to lock the results"+(t.money!==false?' and the payouts.':'.'),'Finish event');
+    if(me>=0){
+      const j=R.findIndex(m=>m.a.includes(me)||m.b.includes(me)),m=j>=0?R[j]:null;
+      if(m&&!filled(m)){
+        const mine_=m.a.includes(me)?m.a:m.b,opp=m.a.includes(me)?m.b:m.a,pt=mine_.filter(i=>i!==me);
+        it.push({p:1,id:t.id,icon:'📍',title,court:R.length>1?'Court '+(j+1):'',h:lab(m),sub:`${pt.length?'with '+nm(t,pt)+' · ':''}vs ${nm(t,opp)}`,b:'Enter score',go:'score'});
+      }else if(m){
+        const left=R.filter(g=>!filled(g)).length;
+        if(!(adm&&done&&last))add(4,'✓','Your score is in',left?`Waiting for ${left} other game${left==1?'':'s'}. The next ${ser?'game':'round'} starts by itself.`:'All scores are in.','Open event');
+      }else{
+        let nx=null;for(let ri=cr;ri<t.rounds.length&&!nx;ri++){const jj=t.rounds[ri].findIndex(g=>g.a.includes(me)||g.b.includes(me));if(jj>=0)nx={ri,jj,g:t.rounds[ri][jj]}}
+        const sub=nx?`Next: ${nx.g.s?`Series ${nx.g.s} · Game ${nx.g.g}`:'Round '+(nx.ri+1)}${t.rounds[nx.ri].length>1?' · Court '+(nx.jj+1):''} · ${nm(t,nx.g.a.includes(me)?nx.g.a.filter(i=>i!==me):nx.g.a)||'you'} ${nx.g.a.includes(me)?'':'vs '}${nx.g.a.includes(me)?'vs '+nm(t,nx.g.b):nm(t,nx.g.b)}`:'No more games for you in this event.';
+        add(3,'🪑',`You sit out this ${ser?'game':'round'}`,sub,'Open event');
+      }
+    }else if(!(adm&&done&&last))add(4,'⏱',`${ser?'Game':'Round'} ${cr} in progress`,`${R.filter(filled).length} of ${R.length} score${R.length==1?'':'s'} in.`,'Open event');
+  });
+  return it.sort((a,b)=>a.p-b.p);
+}
+function todoHTML(){
+  const it=todoList();if(!it.length)return '';
+  return `<div class="card todo"><h2><span aria-hidden="true">🎯</span> What's next for you</h2>`+it.map(x=>`<div class="mybn${x.p<=2?'':' quiet'}"><div class="k">${x.title}</div>${x.court?`<div class="court">${x.court}</div>`:''}<div class="v">${x.icon&&!x.court?`<span aria-hidden="true">${x.icon}</span> `:''}${x.h}</div>${x.sub?`<div class="nx" style="margin-top:2px">${x.sub}</div>`:''}<button class="${x.p<=2?'':'sec'}" data-act="todo" data-id="${x.id}" data-go="${x.go||''}">${x.b==='Enter score'?'<span aria-hidden="true">✏️</span> ':''}${x.b}</button></div>`).join('')+`</div>`;
+}
 function homeHTML(){
   const live=mine.filter(t=>t.status==='playing'),past=mine.filter(t=>t.status==='done');
   /* not started yet: soonest planned start first, events without a planned time after those, newest first */
@@ -520,6 +634,7 @@ function homeHTML(){
     if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join an event"><span aria-hidden="true">＋</span> Event</button><div style="height:76px"></div>`;
     return h;
   }
+  h+=todoHTML();
   if(live.length)h+=`<div class="card live"><h2><span class="pulse"></span>Live now</h2>${live.map(tlRow).join('')}</div>`;
   if(soon.length)h+=`<div class="card"><h2><span aria-hidden="true">📅</span> Upcoming events</h2>${soon.map(tlRow).join('')}</div>`;
   h+=boardCardHTML();
@@ -564,7 +679,15 @@ function renderModal(){
   const m=$('modal');if(!m)return;
   if(!dlg||!prof){m.innerHTML='';document.body.classList.remove('noscroll');return}
   document.body.classList.add('noscroll');
-  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():plusDlgHTML()}</div></div>`;
+  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():dlg==='qr'&&T?qrDlgHTML():plusDlgHTML()}</div></div>`;
+}
+function qrDlgHTML(){
+  const svg=qrSVG(link(),Math.max(180,Math.min(320,innerWidth-96)));
+  return `<div class="top"><h2 style="margin:0;font-size:20px"><span aria-hidden="true">📱</span> Invite players</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
+  <div class="card" style="text-align:center">${svg?`<div class="qrbox">${svg}</div>`:'<div class="note" style="margin-top:0">This link is too long for a QR code. Share the code below instead.</div>'}
+    <div class="note">Point a phone camera at this to join${T.name?' <b>'+esc(T.name)+'</b>':''}. It opens the app and adds you to the event.</div>
+    <div class="code">${esc(T.code)}</div>
+    <button data-act="share"><span aria-hidden="true">📤</span> Share link instead</button></div>`;
 }
 function eventDlgHTML(){
   const x=evt,live=x.status!=='done',fmt=fmtName(x)+' · '+typeText(x)+(typeOf(x)==='fun'?' (not rated)':'');
@@ -714,6 +837,7 @@ function lobbyHTML(){
   <div class="sub"><b>${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}</b> · ${adm?(cash()?'You are the director. Approve players once they have paid and arrived.':'You are the director. Players are approved automatically when they join. Revoke anyone who isn\'t playing.'):'Waiting for everyone to arrive.'}</div>
   ${adm?'':'<div class="banner" id="banner"></div>'}
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
+    <button class="sec" data-act="dopen" data-d="qr"><span aria-hidden="true">📱</span> Show QR code</button>
     <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share"><span aria-hidden="true">📤</span> Share</button></div>
     <div class="note">Anyone with the link can join the lobby until play starts.</div></div>
   <div class="card"><div class="row">
@@ -838,7 +962,7 @@ function renderBanner(){
   const j=R.findIndex(inMatch),m=j>=0?R[j]:null;
   if(m&&!filled(m)){
     const x=sides(m);
-    el.innerHTML=`<div class="mybn"><div class="k">Your game now</div><div class="v">${lab(cr-1,j,m)}</div><div class="v" style="font-weight:600">${x.pt?'with '+x.pt+' · ':''}vs ${x.op}</div>${nx}<button data-act="goscore"><span aria-hidden="true">✏️</span> Enter your score</button></div>`;
+    el.innerHTML=`<div class="mybn"><div class="k">Your game now</div>${R.length>1?`<div class="court">Court ${j+1}</div><div class="v">${lab(cr-1,j,m).replace(/^Court \d+ · /,'')}</div>`:`<div class="v">${lab(cr-1,j,m)}</div>`}<div class="v" style="font-weight:600">${x.pt?'with '+x.pt+' · ':''}vs ${x.op}</div>${nx}<button data-act="goscore"><span aria-hidden="true">✏️</span> Enter your score</button></div>`;
   }else if(m){
     const wait=R.filter(g=>!filled(g)).map(g=>`${team(g.a)} vs ${team(g.b)}`);
     el.innerHTML=`<div class="mybn quiet"><div class="k">Your score is in ✓</div><div class="v" style="font-weight:600">${wait.length?'Waiting for '+wait.join(' · ')+'. The next '+unit().toLowerCase()+' starts automatically.':'All scores are in.'}</div>${m.fix?`<div class="nx" style="color:var(--gold)">✎ This score was corrected by ${esc(m.fix.by)} (was ${esc(m.fix.was)}).</div>`:''}${nx}</div>`;
@@ -962,7 +1086,8 @@ function openHTML(){
   return `<div class="top"><h1>${ttl('Open play')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${isAdmin()?'You are the host. ':''}Anyone with the code can join any time. Pick your partner and opponents, play, then enter the score.</div>
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
-    <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div></div>
+    <button class="sec" data-act="dopen" data-d="qr"><span aria-hidden="true">📱</span> Show QR code</button>
+    <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share"><span aria-hidden="true">📤</span> Share</button></div></div>
   <div id="ob"></div>`;
 }
 function openStand(){
@@ -1033,9 +1158,33 @@ function doneOpenHTML(){
 }
 
 /* ---------- data ---------- */
+/* Events that are not finished come with their schedule, so the dashboard can say what each player has to do next. */
+async function loadActive(){
+  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format';
+  const [a,d]=await Promise.all([
+    sb.from('tournaments').select(cols+',rounds,pids,players').neq('status','done').order('created_at',{ascending:false}),
+    sb.from('tournaments').select(cols).eq('status','done').order('created_at',{ascending:false}).limit(100)]);
+  mine=[...(a.data||[]),...(d.data||[])].sort((x,y)=>new Date(y.created_at)-new Date(x.created_at));
+  const ids=(a.data||[]).map(t=>t.id);actMem={};openG=[];
+  if(ids.length){
+    const [m,g]=await Promise.all([sb.from('members').select('tournament_id,profile_id,approved').in('tournament_id',ids),
+      sb.from('games').select('id,tournament_id,a,b,sa,sb,voided').in('tournament_id',ids).is('sa',null)]);
+    (m.data||[]).forEach(r=>(actMem[r.tournament_id]=actMem[r.tournament_id]||[]).push(r));
+    openG=(g.data||[]).filter(x=>!x.voided);
+  }
+}
+/* While the dashboard is showing, keep it fresh (and when the app comes back to the front, e.g. after a text message). */
+let homeBusy=false;
+async function homeTick(){
+  if(!prof||view!=='home'||dlg||document.hidden||homeBusy)return;
+  homeBusy=true;
+  try{const before=JSON.stringify([mine,actMem,openG]);await loadActive();if(view==='home'&&!dlg&&JSON.stringify([mine,actMem,openG])!==before)render()}catch(e){}
+  finally{homeBusy=false}
+}
+setInterval(homeTick,8000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)homeTick()});
 async function loadMine(){
-  const {data}=await sb.from('tournaments').select('id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format').order('created_at',{ascending:false}).limit(100);
-  mine=data||[];
+  await loadActive();
   const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[];
   const f=await sb.rpc('activity');feed=Array.isArray(f.data)?f.data:[];
   const w=await sb.rpc('whoami');if(w.data&&prof)Object.assign(prof,setProf(w.data));
@@ -1108,6 +1257,10 @@ const actions={
   mode(el){authMode=el.dataset.m;fgStep='email';render();$('un')?.focus()},
   forgot(){authMode='forgot';fgStep='email';render();$('fe')?.focus()},
   nonear(){ls.set('pb_nonear','1');render()},
+  async todo(el){
+    if(!await openT(el.dataset.id))return;
+    if(el.dataset.go==='score'&&view==='play')actions.goscore();
+  },
   htab(el){homeTab=el.dataset.v;render();window.scrollTo(0,0)},
   async psave(){
     const v=id=>($(id)?.value||'').trim();
