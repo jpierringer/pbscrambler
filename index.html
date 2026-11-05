@@ -149,7 +149,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[];
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -218,7 +218,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v34 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v35 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -351,16 +351,30 @@ function seriesState(sn){   /* wins for the a side and the b side of series sn, 
   T.rounds.forEach(r=>r.forEach(m=>{if(m.s!==sn)return;m0=m0||m;if(!filled(m))return;if(+m.sa>+m.sb)wa++;else if(+m.sb>+m.sa)wb++}));
   return {wa,wb,m0,win:wa>=2?'a':wb>=2?'b':null};
 }
+/* Official player swaps. A swap hands a player's unscored games to a new player (a new position in players/pids). For the
+   standings the two share one seat: points and wins from both count together, the seat shows the current player and the
+   entry fee stays with the seat. Ratings are separate: each game is rated for whoever actually played it. */
+const swapList=()=>Array.isArray(T?.swaps)?T.swaps:[];
+const seatOf=i=>{let k=i,w;while((w=swapList().find(x=>x.in===k)))k=w.out;return k};
+const occupantOf=k=>{let w;while((w=swapList().find(x=>x.out===k)))k=w.in;return k};
+const occupantAt=(k,ri)=>{let w;while((w=swapList().find(x=>x.out===k&&x.round<=ri)))k=w.in;return k};
+const seatCount=()=>T.players.length-swapList().length;
+function seatRows(s){
+  return s.filter((_,k)=>!swapList().some(w=>w.in===k)).map(r=>{
+    const o=occupantOf(r.i),was=[];let k=r.i;while(k!==o){was.push(T.players[k]);k=swapList().find(x=>x.out===k).in}
+    return {...r,i:o,n:T.players[o],was};
+  });
+}
 function standingsSeries(){
   const s=T.players.map((n,i)=>({i,n,pf:0,pa:0,g:0,gw:0,sw:0}));
   T.rounds.forEach(r=>r.forEach(m=>{
     if(!filled(m))return;
     const aw=+m.sa>+m.sb;
-    m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb;s[i].g++;if(aw)s[i].gw++});
-    m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa;s[i].g++;if(!aw)s[i].gw++});
+    m.a.forEach(i=>{const q=s[seatOf(i)];q.pf+=+m.sa;q.pa+=+m.sb;q.g++;if(aw)q.gw++});
+    m.b.forEach(i=>{const q=s[seatOf(i)];q.pf+=+m.sb;q.pa+=+m.sa;q.g++;if(!aw)q.gw++});
   }));
-  [1,2,3].forEach(n=>{const st=seriesState(n);if(st.win&&st.m0)st.m0[st.win].forEach(i=>s[i].sw++)});
-  return s.sort((x,y)=>y.sw-x.sw||y.gw-x.gw);
+  [1,2,3].forEach(n=>{const st=seriesState(n);if(st.win&&st.m0)st.m0[st.win].forEach(i=>s[seatOf(i)].sw++)});
+  return seatRows(s).sort((x,y)=>y.sw-x.sw||y.gw-x.gw);
 }
 function standings(){
   if(isSeries())return standingsSeries();
@@ -368,10 +382,10 @@ function standings(){
   T.rounds.forEach(r=>r.forEach(m=>{
     if(!filled(m))return;
     const aw=+m.sa>+m.sb,bw=+m.sb>+m.sa;
-    m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb;s[i].g++;if(aw)s[i].gw++});
-    m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa;s[i].g++;if(bw)s[i].gw++});
+    m.a.forEach(i=>{const q=s[seatOf(i)];q.pf+=+m.sa;q.pa+=+m.sb;q.g++;if(aw)q.gw++});
+    m.b.forEach(i=>{const q=s[seatOf(i)];q.pf+=+m.sb;q.pa+=+m.sa;q.g++;if(bw)q.gw++});
   }));
-  return s.sort((x,y)=>y.pf-x.pf||y.gw-x.gw);
+  return seatRows(s).sort((x,y)=>y.pf-x.pf||y.gw-x.gw);
 }
 /* Ties: players level on the main score (points, or series won in a series) and on total games won share a place.
    Their prize money is pooled and split evenly in whole units of the fee. Any leftover unit goes by a random draw
@@ -679,7 +693,26 @@ function renderModal(){
   const m=$('modal');if(!m)return;
   if(!dlg||!prof){m.innerHTML='';document.body.classList.remove('noscroll');return}
   document.body.classList.add('noscroll');
-  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():dlg==='qr'&&T?qrDlgHTML():plusDlgHTML()}</div></div>`;
+  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():dlg==='qr'&&T?qrDlgHTML():dlg==='swap'&&T?swapDlgHTML():plusDlgHTML()}</div></div>`;
+}
+function swapDlgHTML(){
+  const open=new Set();T.rounds.forEach(r=>r.forEach(m=>{if(!filled(m))[...m.a,...m.b].forEach(i=>open.add(i))}));
+  const leaving=[...open].filter(i=>!swapList().some(w=>w.out===i)).sort((a,b)=>a-b);
+  const names=new Set(T.players.map(n=>String(n).toLowerCase()));
+  const waiting=(M||[]).filter(m=>m.approved&&!names.has(String(m.name).toLowerCase())&&(!m.profile_id||!(T.pids||[]).includes(m.profile_id)));
+  return `<div class="top"><h2 style="margin:0;font-size:20px"><span aria-hidden="true">🔁</span> Swap a player</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
+  <div class="card"><div class="note" style="margin-top:0">Use this when someone has to leave. The new player takes over every game that has not been scored yet. Games already played stay with the player who played them, and both players are rated for their own games.</div>
+    <label>Who is leaving?</label><select id="swout"><option value="">Choose a player</option>${leaving.map(i=>`<option value="${i}">${esc(T.players[i])}</option>`).join('')}</select>
+    <label>Who takes over?</label>
+    ${waiting.length?`<select id="swmem"><option value="">Someone already in this event…</option>${waiting.map(m=>`<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('')}</select>`:''}
+    <input id="swuser" maxlength="20" autocapitalize="none" autocomplete="off" placeholder="${waiting.length?'…or a':'A'} username (rated)" style="margin-top:8px">
+    <input id="swguest" maxlength="30" autocomplete="off" placeholder="…or a guest name (not rated)" style="margin-top:8px">
+    <div id="derr" class="err" role="alert" aria-live="polite"></div>
+    <button class="sp" data-act="swapok"><span aria-hidden="true">🔁</span> Make the swap</button>
+    ${swapList().length?`<div class="note">${swapNotes()}</div>`:''}</div>`;
+}
+function swapNotes(){
+  return swapList().map(w=>`<div>🔁 <b>${esc(T.players[w.in])}</b> took over from <b>${esc(T.players[w.out])}</b> from ${unit().toLowerCase()} ${w.round+1}${w.by?' (by '+esc(w.by)+')':''}.</div>`).join('');
 }
 function qrDlgHTML(){
   const svg=qrSVG(link(),Math.max(180,Math.min(320,innerWidth-96)));
@@ -920,7 +953,7 @@ function playHTML(){
 function renderTabs(){
   $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:'Round '+(i+1)}${r.some(m=>m.fix)?' ✎':''}</button>`).join('');
 }
-function byesOf(ri){const on=new Set();T.rounds[ri].forEach(m=>[...m.a,...m.b].forEach(i=>on.add(i)));return T.players.map((_,i)=>i).filter(i=>!on.has(i))}
+function byesOf(ri){const on=new Set();T.rounds[ri].forEach(m=>[...m.a,...m.b].forEach(i=>on.add(seatOf(i))));return T.players.map((_,i)=>i).filter(i=>!swapList().some(w=>w.in===i)).filter(k=>!on.has(k)).map(k=>occupantAt(k,ri))}
 function byeHTML(ri){
   const b=byesOf(ri);if(!b.length)return '';
   const mineBye=b.includes(myIdx());
@@ -991,21 +1024,27 @@ function renderCtl(){
     if(last&&done&&finAsk)h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>Finish this event?</b><div class="note" style="margin:6px 0 0">Scores can't be changed after this. Payouts and ratings are final.</div><div class="row" style="margin-top:8px"><button data-act="finishok">Yes, finish</button><button class="sec" data-act="finishno">Not yet</button></div></div>`;
     else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'<span aria-hidden="true">🏁</span> Finish event':'<span aria-hidden="true">⏭</span> Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
     if(!done)h+=`<div class="note">${last?'Finish unlocks when every game has a score.':`The next ${unit().toLowerCase()} starts by itself once every game has a score.`} You can enter or fix any score yourself.</div>`;
+    const all=T.rounds.flat(),sc=all.filter(filled).length,un=all.length-sc;
+    if(endAsk){
+      const gs=standings().map(x=>x.g),lo=Math.min(...gs),hi=Math.max(...gs);
+      h+=sc?`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>End the event now?</b><div class="note" style="margin:6px 0 0">${un?`The ${un} game${un==1?'':'s'} not played yet will be dropped. `:''}Standings${cash()?' and payouts':''} use the ${sc} scored game${sc==1?'':'s'}.${lo!==hi?` Players have played between ${lo} and ${hi} games.`:''} Nothing can be changed after this. Everyone is rated for the games they played.</div><div class="row" style="margin-top:8px"><button data-act="endok">Yes, end it now</button><button class="sec" data-act="endno">Keep playing</button></div></div>`
+        :`<div class="note">No games have been scored yet, so there is nothing to close out. Delete the event instead.</div>`;
+    }else h+=`<div class="row sp" style="margin-top:10px"><button class="sec sm" data-act="dopen" data-d="swap"><span aria-hidden="true">🔁</span> Swap a player</button>${last&&done?'':'<button class="sec sm" data-act="endask"><span aria-hidden="true">⏹</span> End event early</button>'}</div>`;
   }else{
     h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':unit()+' complete. Waiting for the director to start '+unit().toLowerCase()+' '+(cr+1)+'.'):'Enter your score as soon as your game ends.'+auto}</div>`;
   }
   el.innerHTML=h;
 }
 function renderStand(){
-  const c=cash(),p=c?payoutsFor(T.players.length,+T.fee||0):[],st=placed(standings(),p);
+  const c=cash(),p=c?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
   const over=tournamentOver();
   $('sh').textContent=over?'Final standings':c?'Standings (projected payouts)':'Standings';
   const sr=isSeries();
-  $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>Wins</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${pl(x.n,T.pids?.[x.i])}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.gw}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('');
-  const tn=$('tienote');if(tn)tn.innerHTML=tieNotes(st,c);
+  $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>Wins</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${pl(x.n,T.pids?.[x.i])}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.gw}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('');
+  const tn=$('tienote');if(tn)tn.innerHTML=tieNotes(st,c)+swapNotes();
   const nt=$('rnote');if(nt)nt.textContent=sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
   renderBanner();renderStrip();
-  $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
+  $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${seatCount()} players = ${$$(+T.fee*seatCount())} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
 }
 function renderPlayBody(){
   if(cur>=T.rounds.length)cur=T.rounds.length-1;
@@ -1016,10 +1055,10 @@ function doneHTML(){
   if(T.kind==='open')return doneOpenHTML();
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
   return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
-  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
   <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
-  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
-  `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
+  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
+  `</table>${r.some(x=>x.tie)||swapList().length?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
 }
 function doneGamesHTML(){
   if(!Array.isArray(T.rounds))return '';
@@ -1237,7 +1276,9 @@ async function refresh(){
     if(!data){toast("You're no longer in this event");await goHome();return}
     const wasAdmin=isAdmin(),oldCR=T.current_round;
     const oldFix=new Map();(T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix)oldFix.set(ri+'-'+j,m.fix.at)}));
+    const oldSwaps=(T.swaps||[]).length;
     T=data;await loadMembers();
+    if((T.swaps||[]).length>oldSwaps&&view==='play'){const w=T.swaps[T.swaps.length-1];toast(`🔁 ${T.players[w.in]} now plays for ${T.players[w.out]}`)}
     (T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix&&oldFix.get(ri+'-'+j)!==m.fix.at&&m.fix.by!==prof?.username&&view==='play')toast(`✎ ${m.fix.by} corrected a score: ${[...m.a].map(i=>T.players[i]).join(' & ')} ${m.sa}–${m.sb} ${[...m.b].map(i=>T.players[i]).join(' & ')} (was ${m.fix.was})`)}));if(T.kind==='open')await loadGames();
     if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(`${unit()} ${T.current_round} has started`)}
     const v=viewFor(T.status);
@@ -1491,12 +1532,28 @@ const actions={
     if(isSeries()||(ri+1===T.current_round&&allIn(T.rounds[ri])))await refresh();
   },
   async nextround(){await rpc('next_round',{p_tid:T.id});await refresh();cur=T.current_round-1;renderPlayBody();window.scrollTo(0,0)},
+  endask(){endAsk=true;finAsk=false;renderCtl()},
+  endno(){endAsk=false;renderCtl()},
+  async endok(){
+    endAsk=false;
+    const p=cash()?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
+    const result=st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,...(x.was?.length?{was:x.was}:{}),pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
+    await rpc('end_tournament_early',{p_tid:T.id,p_result:result});
+    await refresh();toast('Event closed. Every scored game is on record.');
+  },
+  async swapok(){
+    const out=+$('swout')?.value,mem=$('swmem')?.value||'',user=($('swuser')?.value||'').trim(),guest=($('swguest')?.value||'').trim();
+    if(!Number.isInteger(out)||!$('swout')?.value)return derr('Choose who is leaving.','swout');
+    if([mem,user,guest].filter(Boolean).length!==1)return derr('Bring in one player: pick someone from the event, or type a username, or type a guest name.');
+    try{await rpc('swap_player',{p_tid:T.id,p_out:out,p_member:mem||null,p_user:user||null,p_guest:guest||null},true)}catch(e){return derr(e.friendly)}
+    dlg='';renderModal();await refresh();
+  },
   finish(){finAsk=true;renderCtl()},
   finishno(){finAsk=false;renderCtl()},
   async finishok(){
     finAsk=false;
-    const p=cash()?payoutsFor(T.players.length,+T.fee||0):[],st=placed(standings(),p);
-    const result=st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
+    const p=cash()?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
+    const result=st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,...(x.was?.length?{was:x.was}:{}),pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
     await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
     await refresh();
   },
