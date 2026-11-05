@@ -212,7 +212,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v25 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v27 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -351,17 +351,54 @@ function standingsSeries(){
     m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa;s[i].g++;if(!aw)s[i].gw++});
   }));
   [1,2,3].forEach(n=>{const st=seriesState(n);if(st.win&&st.m0)st.m0[st.win].forEach(i=>s[i].sw++)});
-  return s.sort((x,y)=>y.sw-x.sw||y.gw-x.gw||(y.pf-y.pa)-(x.pf-x.pa)||y.pf-x.pf);
+  return s.sort((x,y)=>y.sw-x.sw||y.gw-x.gw);
 }
 function standings(){
   if(isSeries())return standingsSeries();
-  const s=T.players.map((n,i)=>({i,n,pf:0,pa:0,g:0}));
+  const s=T.players.map((n,i)=>({i,n,pf:0,pa:0,g:0,gw:0}));
   T.rounds.forEach(r=>r.forEach(m=>{
     if(!filled(m))return;
-    m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb;s[i].g++});
-    m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa;s[i].g++});
+    const aw=+m.sa>+m.sb,bw=+m.sb>+m.sa;
+    m.a.forEach(i=>{s[i].pf+=+m.sa;s[i].pa+=+m.sb;s[i].g++;if(aw)s[i].gw++});
+    m.b.forEach(i=>{s[i].pf+=+m.sb;s[i].pa+=+m.sa;s[i].g++;if(bw)s[i].gw++});
   }));
-  return s.sort((x,y)=>y.pf-x.pf||(y.pf-y.pa)-(x.pf-x.pa));
+  return s.sort((x,y)=>y.pf-x.pf||y.gw-x.gw);
+}
+/* Ties: players level on the main score (points, or series won in a series) and on total games won share a place.
+   Their prize money is pooled and split evenly in whole units of the fee. Any leftover unit goes by a random draw
+   that is seeded by the tournament and the tied players, so every phone shows the same winner of the draw. */
+function sameRank(x,y){return isSeries()?x.sw===y.sw&&x.gw===y.gw:x.pf===y.pf&&x.gw===y.gw}
+function seedRand(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19}
+  return()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);h^=h>>>16;return(h>>>0)/4294967296}}
+function feeUnit(){const fee=+T.fee||0;return [1,.5,.25,.1,.05,.01].find(x=>Math.abs(fee/x-Math.round(fee/x))<1e-6)||.01}
+function placed(st,pay){
+  const fee=+T.fee||0,u=feeUnit();
+  const out=st.map(x=>({...x,pl:0,tie:false,pay:0,odd:false}));
+  let a=0;
+  while(a<out.length){
+    let b=a+1;while(b<out.length&&sameRank(out[a],out[b]))b++;
+    const m=b-a,pool=Math.round(pay.slice(a,b).reduce((q,v)=>q+v,0)/u);
+    const rnd=seedRand((T.id||T.code||'')+'|'+out.slice(a,b).map(x=>x.i).sort((q,r)=>q-r).join(','));
+    const order=out.slice(a,b).map((_,k)=>k).map(k=>[rnd(),k]).sort((q,r)=>q[0]-r[0]).map(q=>q[1]);
+    /* nobody is paid less than the entry fee: the pool goes to as many tied players as it can pay at least the fee,
+       chosen by the draw, and is split evenly among them (leftover units also by the draw) */
+    const fu=Math.max(1,Math.round(fee/u)),w=pool<=0?0:Math.max(1,Math.min(m,Math.floor(pool/fu)));
+    for(let k=0;k<m;k++){const e=out[a+k];e.pl=a+1;e.tie=m>1;e.drew=pool>0&&w<m}
+    if(w){const base=Math.floor(pool/w),extra=pool-base*w;
+      for(let k=0;k<w;k++){const e=out[a+order[k]];e.pay=Math.round((base+(k<extra?1:0))*u*100)/100;e.odd=k<extra&&extra>0&&w>1}}
+    a=b;
+  }
+  return out;
+}
+const ord=n=>n+(n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+function tieNotes(rows,c){
+  const seen={};rows.forEach(x=>{if(x.tie)(seen[x.pl]=seen[x.pl]||[]).push(x)});
+  return Object.keys(seen).map(k=>{
+    const g=seen[k],names=g.map(x=>esc(x.n)).join(' and '),odd=g.filter(x=>x.odd);
+    const paid=c&&g.some(x=>x.pay>0);
+    const win=g.filter(x=>x.pay>0);
+    const txt=!paid?'Same total and same games won.':g.some(x=>x.drew)?`Prize money can't be split below the entry fee, so ${$$(win.reduce((q,x)=>q+x.pay,0))} goes to <b>${win.map(x=>esc(x.n)).join(' and ')}</b> by random draw.`:'Their prize money is pooled and split evenly'+(odd.length?`; the odd ${$$(feeUnit())} goes to <b>${odd.map(x=>esc(x.n)).join(' and ')}</b> by random draw.`:'.');
+    return `<div>Tied for ${ord(+k)}: <b>${names}</b>. ${txt}</div>`}).join('');
 }
 const team=t=>t.map(i=>esc(T.players[i])).join(' &amp; ');
 const link=()=>location.href.split('#')[0].split('?')[0]+'?t='+T.code;
@@ -370,7 +407,7 @@ const link=()=>location.href.split('#')[0].split('?')[0]+'?t='+T.code;
 function myResults(){
   return mine.filter(t=>t.status==='done'&&t.kind!=='open'&&t.money!==false&&Array.isArray(t.result)).map(t=>{
     const i=t.result.findIndex(x=>x.p===prof.id);
-    return i<0?null:{t,rank:i+1,n:t.result.length,fee:+t.fee,pay:+t.result[i].pay||0};
+    return i<0?null:{t,rank:t.result[i].pl||i+1,n:t.result.length,fee:+t.fee,pay:+t.result[i].pay||0};
   }).filter(Boolean);
 }
 function statsHTML(){
@@ -448,8 +485,8 @@ function tlRow(t){
   }else if(t.status==='done'){
     const i=(t.result||[]).findIndex(x=>x.p===prof.id);
     if(i<0)st=`🏆 ${esc(t.result?.[0]?.n||'')}`;
-    else if(t.money===false)st=`#${i+1} of ${t.result.length} · for fun`;
-    else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
+    else if(t.money===false)st=`#${t.result[i].pl||i+1} of ${t.result.length} · for fun`;
+    else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${t.result[i].pl||i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
   }else st=t.status==='playing'?`Round ${t.current_round}`:'Lobby';
   const dt=new Date(t.created_at).toLocaleDateString();
   return `<div class="tl" data-act="open" data-id="${t.id}"><div><b>${t.name?esc(t.name):dt}</b> <span>· ${t.name?dt+' · ':''}${esc(t.code)}${t.admin_id===prof.id?' · director':''}</span>${t.status!=='done'&&t.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(t.starts_at))}${t.location?' · 📍 '+esc(t.location):''}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`;
@@ -731,7 +768,7 @@ function playHTML(){
   <div class="card" id="round"></div>
   <div class="card" id="ctl"></div>
   <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
-    <div class="note" id="rnote"></div></div>
+    <div class="note" id="rnote"></div><div class="note" id="tienote"></div></div>
   ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
 }
 function renderTabs(){
@@ -814,12 +851,13 @@ function renderCtl(){
   el.innerHTML=h;
 }
 function renderStand(){
-  const c=cash(),st=standings(),p=c?payoutsFor(T.players.length,+T.fee||0):[];
+  const c=cash(),p=c?payoutsFor(T.players.length,+T.fee||0):[],st=placed(standings(),p);
   const over=tournamentOver();
   $('sh').textContent=over?'Final standings':c?'Standings (projected payouts)':'Standings';
   const sr=isSeries();
-  $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>G</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${i+1}</td><td>${pl(x.n,T.pids?.[x.i])}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.g}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${i<p.length?$$(p[i]):''}</td>`:''}</tr>`).join('');
-  const nt=$('rnote');if(nt)nt.textContent=sr?'Ranked by series won, then games won, then point differential. Ties are not split automatically, so settle them by hand.':"Ranked by total points scored, then point differential. Ties aren't split automatically, so settle them by hand.";
+  $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>Wins</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${pl(x.n,T.pids?.[x.i])}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.gw}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('');
+  const tn=$('tienote');if(tn)tn.innerHTML=tieNotes(st,c);
+  const nt=$('rnote');if(nt)nt.textContent=sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
   renderBanner();renderStrip();
   $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`:`Code ${T.code} · Just for fun`;
 }
@@ -833,9 +871,9 @@ function doneHTML(){
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
   return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home">Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:' · just for fun'}</div>
-  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
-  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${pl(x.n,x.p)}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
-  `</table></div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
+  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
+  r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
+  `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
 }
 function doneGamesHTML(){
   if(!Array.isArray(T.rounds))return '';
@@ -1281,8 +1319,8 @@ const actions={
   finishno(){finAsk=false;renderCtl()},
   async finishok(){
     finAsk=false;
-    const st=standings(),p=cash()?payoutsFor(T.players.length,+T.fee||0):[];
-    const result=st.map((x,i)=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:i<p.length?p[i]:0,...(isSeries()?{sw:x.sw,gw:x.gw,g:x.g}:{})}));
+    const p=cash()?payoutsFor(T.players.length,+T.fee||0):[],st=placed(standings(),p);
+    const result=st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
     await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
     await refresh();
   },
