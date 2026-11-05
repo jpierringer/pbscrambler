@@ -145,7 +145,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newMoney=true,board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[];
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -214,13 +214,16 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v28 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v29 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
 const unit=()=>isSeries()?'Game':'Round';
 const fmtName=x=>x.kind==='open'?'Open play':x.format==='series'?'4-player series':'Scramble';
 const cash=()=>!!T&&T.kind!=='open'&&T.money!==false;
+/* event type: 'money' (Moneyball + Rated), 'rated' (no money) or 'fun' (no money, no rating) */
+const typeOf=t=>!t?'rated':t.kind!=='open'&&t.money!==false?'money':t.rated===false?'fun':'rated';
+const typeText=t=>({money:'Moneyball + Rated',rated:'Rated',fun:'Just for fun'})[typeOf(t)];
 const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn);
 
 /* ---------- payouts + schedule ---------- */
@@ -487,7 +490,7 @@ function tlRow(t){
   }else if(t.status==='done'){
     const i=(t.result||[]).findIndex(x=>x.p===prof.id);
     if(i<0)st=`🏆 ${esc(t.result?.[0]?.n||'')}`;
-    else if(t.money===false)st=`#${t.result[i].pl||i+1} of ${t.result.length} · for fun`;
+    else if(t.money===false)st=`#${t.result[i].pl||i+1} of ${t.result.length} · ${typeOf(t)==='fun'?'for fun':'rated'}`;
     else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${t.result[i].pl||i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
   }else st=t.status==='playing'?`Round ${t.current_round}`:'Lobby';
   const dt=new Date(t.created_at).toLocaleDateString();
@@ -549,7 +552,7 @@ function renderModal(){
   m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():plusDlgHTML()}</div></div>`;
 }
 function eventDlgHTML(){
-  const x=evt,live=x.status!=='done',fmt=fmtName(x);
+  const x=evt,live=x.status!=='done',fmt=fmtName(x)+' · '+typeText(x)+(typeOf(x)==='fun'?' (not rated)':'');
   const state=live?(x.status==='lobby'?'Gathering players':(x.kind==='open'?'Live now':x.format==='series'?`Game ${x.round}`:`Round ${x.round}${x.total_rounds?' of '+x.total_rounds:''}`)):`Finished ${ago(x.at)}`;
   const names=(x.players||[]).map(n=>`<span class="badge" style="margin:0 6px 6px 0;display:inline-block;font-size:13px;padding:4px 8px">${esc(n)}</span>`).join('');
   let body;
@@ -587,7 +590,7 @@ function profileDlgHTML(){
     rating=`<div class="card"><h2>Your rating</h2><div class="stats">${tile((+me.rating).toFixed(2),'Rating')}${tile(pos?'#'+pos+' of '+rk.length:'–',me.ranked?(me.active?'Rank':'Inactive'):'Not ranked yet')}${tile(me.games,'Rated games')}</div>
       <div class="note">${me.reliable?'Settled rating.':'<span class="badge" style="margin-left:0">settling</span> Still moving quickly, or based on few different opponents.'}${me.tougher?'<br><b>Needs tougher opponents:</b> your rating is a point or more above the best team you have beaten.':''}${Math.abs(mv)>=0.01?`<br>Last 2 weeks: <b class="${mv>0?'pos':'neg'}">${mv>0?'+':'−'}${Math.abs(mv).toFixed(2)}</b>`:''}${me.ranked?'':'<br>Ranked after 12 rated games across at least 3 events.'}</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}"><span aria-hidden="true">📈</span> See my game history</button></div>`;
   }else{
-    rating=`<div class="card"><h2>Your rating</h2><div class="note" style="margin-top:0">No rating yet. It starts after your first finished event where all four players in a game have accounts. You'll start at ${(prof.start??3.5).toFixed(2)}.</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}">See my game history</button></div>`;
+    rating=`<div class="card"><h2>Your rating</h2><div class="note" style="margin-top:0">No rating yet. It starts after your first finished rated event where all four players in a game have accounts. You'll start at ${(prof.start??3.5).toFixed(2)}.</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}">See my game history</button></div>`;
   }
   const start=canSetStart()
     ?`<div class="card"><h2>Starting rating <span class="note" style="font-weight:400">· optional</span></h2>
@@ -657,13 +660,15 @@ function plusDlgHTML(){
         <button class="${!op&&!se?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
         <button class="${se?'on':''}" data-act="fmt" data-k="series"><span aria-hidden="true">👥</span> 4-player series</button>
         <button class="${op?'on':''}" data-act="fmt" data-k="open"><span aria-hidden="true">🏓</span> Open play</button></div>
-      ${op?'':`<label>Money</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
-        <button class="${newMoney?'on':''}" data-act="mon" data-v="1"><span aria-hidden="true">💵</span> Entry fee + payouts</button>
-        <button class="${newMoney?'':'on'}" data-act="mon" data-v="0"><span aria-hidden="true">🎉</span> Just for fun</button></div>`}
+      <label>Type</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
+        ${op?'':`<button class="${newType==='money'?'on':''}" data-act="typ" data-v="money"><span aria-hidden="true">💵</span> Moneyball + Rated</button>`}
+        <button class="${newType==='rated'?'on':''}" data-act="typ" data-v="rated"><span aria-hidden="true">📊</span> Rated</button>
+        <button class="${newType==='fun'?'on':''}" data-act="typ" data-v="fun"><span aria-hidden="true">🎉</span> Just for fun</button></div>
+      <div class="note" style="margin-top:6px">${newType==='money'?'Entry fee and payouts. Games to 11, win by 1. Counts toward ratings.':newType==='rated'?'No money. Counts toward ratings.':'No money and no rating. Nothing here changes anyone\'s rating.'}</div>
       <button class="sp" data-act="create">${op?'Start open play':se?'Start a series':'Start a new tournament'}</button>
-      <div class="note">${se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${newMoney?': you approve players once they pay':''}, and everyone enters their own scores.`:op
+      <div class="note">${se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${(newType==='money')?': you approve players once they pay':''}, and everyone enters their own scores.`:op
         ?'You pick who plays with and against whom. Players can join any time, start games when a court is free, and enter their own scores. No money in open play.'
-        :`Teams are drawn for you each round, no repeat partners. You'll be the director: you ${newMoney?'approve players once they pay, ':''}start each round, and everyone enters their own scores.`}</div></div>
+        :`Teams are drawn for you each round, no repeat partners. You'll be the director: you ${(newType==='money')?'approve players once they pay, ':''}start each round, and everyone enters their own scores.`}</div></div>
     ${first?'':joinCard}`;
 }
 
@@ -691,7 +696,7 @@ function nameBar(){
 function lobbyHTML(){
   const adm=isAdmin();
   return `<div class="top"><h1>${ttl('Lobby')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
-  <div class="sub">${adm?(cash()?'You are the director. Approve players once they have paid and arrived.':'You are the director. Players are approved automatically when they join. Revoke anyone who isn\'t playing.'):'Waiting for everyone to arrive.'}</div>
+  <div class="sub"><b>${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}</b> · ${adm?(cash()?'You are the director. Approve players once they have paid and arrived.':'You are the director. Players are approved automatically when they join. Revoke anyone who isn\'t playing.'):'Waiting for everyone to arrive.'}</div>
   ${adm?'':'<div class="banner" id="banner"></div>'}
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
     <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share"><span aria-hidden="true">📤</span> Share</button></div>
@@ -861,7 +866,7 @@ function renderStand(){
   const tn=$('tienote');if(tn)tn.innerHTML=tieNotes(st,c);
   const nt=$('rnote');if(nt)nt.textContent=sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
   renderBanner();renderStrip();
-  $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`:`Code ${T.code} · Just for fun`;
+  $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${T.players.length} players = ${$$(+T.fee*T.players.length)} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
 }
 function renderPlayBody(){
   if(cur>=T.rounds.length)cur=T.rounds.length-1;
@@ -872,7 +877,7 @@ function doneHTML(){
   if(T.kind==='open')return doneOpenHTML();
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
   return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
-  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:' · just for fun'}</div>
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>
   <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
   r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
   `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>':''}`;
@@ -896,7 +901,7 @@ const rankedNow=()=>board.filter(x=>x.ranked&&x.active);
 const mvHTML=x=>{const v=+x.move;return v>=0.03?`<span class="mv pos">▲ ${v.toFixed(2)}</span>`:v<=-0.03?`<span class="mv neg">▼ ${Math.abs(v).toFixed(2)}</span>`:''};
 function boardCardHTML(){
   const head=`<div class="top"><h2 style="margin:0">Leaderboard</h2><button class="sec sm" data-act="board"><span aria-hidden="true">🏆</span> Full leaderboard ›</button></div>`;
-  if(!board.length)return `<div class="card">${head}<div class="note">No ratings yet. They start after the first finished event.</div></div>`;
+  if(!board.length)return `<div class="card">${head}<div class="note">No ratings yet. They start after the first finished rated event.</div></div>`;
   const rk=rankedNow(),ranked=rk.length>0,list=ranked?rk:board.filter(x=>x.active),top=list.slice(0,5),me=board.find(isMe);
   const row=(x,pos)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${pos}</td><td>${esc(dn(x))}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${mvHTML(x)}</td></tr>`;
   let t=top.map((x,i)=>row(x,ranked?i+1:'')).join('');
@@ -920,7 +925,7 @@ function boardHTML(){
   const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>Rating</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${num?i+1:''}</td><td>${esc(dn(x))}${x.reliable?'':'<span class="badge">settling</span>'}${x.tougher?'<div class="note" style="margin:2px 0 0">needs tougher opponents</div>':''}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
   let h=`<div class="top"><h1>Leaderboard</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>
   <div class="sub">Everyone's rating, 2.0 to 8.0. New players start at 3.5.</div>`;
-  if(!board.length)h+=`<div class="card"><div class="note" style="margin:0">No ratings yet. Ratings are built from finished events where all four players in a game have accounts.</div></div>`;
+  if(!board.length)h+=`<div class="card"><div class="note" style="margin:0">No ratings yet. Ratings are built from finished rated events where all four players in a game have accounts. Just-for-fun events don't count.</div></div>`;
   else{
     h+=`<div class="card"><h2>Ranked (${rk.length})</h2>${rk.length?tbl(rk,true):'<div class="note" style="margin:0">Nobody is ranked yet. You need 12 rated games across at least 3 events.</div>'}</div>`;
     if(pv.length)h+=`<div class="card"><h2>Not ranked yet (${pv.length})</h2>${tbl(pv,false)}<div class="note">Listed once a player has 12 rated games across at least 3 events.</div></div>`;
@@ -1014,7 +1019,7 @@ function doneOpenHTML(){
 
 /* ---------- data ---------- */
 async function loadMine(){
-  const {data}=await sb.from('tournaments').select('id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,format').order('created_at',{ascending:false}).limit(100);
+  const {data}=await sb.from('tournaments').select('id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format').order('created_at',{ascending:false}).limit(100);
   mine=data||[];
   const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[];
   const f=await sb.rpc('activity');feed=Array.isArray(f.data)?f.data:[];
@@ -1197,8 +1202,8 @@ const actions={
     try{await rpc('sign_out')}catch(e){return}
     unsubscribe();prof=null;T=null;M=[];mine=[];ls.del('pb_last');authMode='in';view='auth';render();
   },
-  fmt(el){const k=el.dataset.k;newKind=k==='open'?'open':'scramble';newFormat=k==='series'?'series':'random';renderModal()},
-  mon(el){newMoney=el.dataset.v==='1';renderModal()},
+  fmt(el){const k=el.dataset.k;newKind=k==='open'?'open':'scramble';newFormat=k==='series'?'series':'random';if(k==='open'&&newType==='money')newType='rated';renderModal()},
+  typ(el){newType=el.dataset.v;renderModal()},
   async player(el){
     const u=el.dataset.u;if(!u)return;
     const r=await rpc('player_profile',{p_who:u,p_limit:100});
@@ -1225,7 +1230,7 @@ const actions={
   dclose(){dlg='';plyrBack=[];renderModal()},
   pastall(){showAllPast=!showAllPast;render()},
   async create(){
-    const r=await rpc('create_tournament',{p_kind:newKind,p_format:newKind==='open'?'random':newFormat,p_money:newKind==='open'?false:newMoney,p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
+    const r=await rpc('create_tournament',{p_kind:newKind,p_format:newKind==='open'?'random':newFormat,p_money:newKind==='open'?false:newType==='money',p_rated:newType!=='fun',p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
     newName=newWhen=newWhere=newNotes='';
     await openT(r.id);
   },
