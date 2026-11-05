@@ -103,7 +103,9 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .avatar{position:relative;width:44px;height:44px;border-radius:50%;padding:0;flex:none;background:var(--ac);color:#fff;font-size:19px;font-weight:700;display:grid;place-items:center}
 .avatar.lg{width:56px;height:56px;font-size:24px;cursor:default}
 .avatar .dot{position:absolute;top:-1px;right:-1px;width:13px;height:13px;border-radius:50%;background:var(--gold);border:2px solid var(--bg)}
-.fab{position:fixed;right:max(16px,calc(50% - 264px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:60px;height:60px;border-radius:50%;padding:0;font-size:34px;line-height:1;font-weight:400;box-shadow:0 4px 14px rgba(0,0,0,.28);z-index:6}
+.row.acct button{flex:1 1 44%}
+.pbtn{background:none;color:var(--tx);width:auto;padding:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;font-weight:700;flex:none}
+.fab{position:fixed;right:max(16px,calc(50% - 264px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:auto;height:52px;border-radius:26px;padding:0 22px;font-size:17px;line-height:1;font-weight:700;display:flex;align-items:center;gap:8px;box-shadow:0 4px 14px rgba(0,0,0,.28);z-index:6}
 .live{background:var(--ac2);border-color:var(--ac)}
 .live h2{display:flex;align-items:center;gap:8px}
 .pulse{width:10px;height:10px;border-radius:50%;background:var(--ac);animation:pl 1.6s ease-in-out infinite}
@@ -126,7 +128,7 @@ tr.me td{font-weight:700;background:var(--ac2)}
 tr.tap{cursor:pointer}
 input.bad{border-color:var(--neg);outline:1px solid var(--neg)}
 .err{color:var(--neg);font-size:14px;font-weight:600;margin:10px 0 0}
-.xbtn{width:36px;height:36px;padding:0;border-radius:50%;font-size:20px;line-height:1;background:var(--ac2);color:var(--ac);flex:none}
+.xbtn{width:auto;height:36px;padding:0 14px;border-radius:18px;font-size:14px;line-height:1;background:var(--ac2);color:var(--ac);flex:none}
 body.noscroll{overflow:hidden}
 </style></head><body><main id="app"></main><div id="modal"></div>
 <div id="toast" class="hide" role="status"></div>
@@ -212,7 +214,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v27 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v28 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -458,8 +460,8 @@ function authHTML(){
   return TITLE+`<div class="sub">Random partners each round. No repeat partners, max 2 meetings with any opponent.</div>
   ${pendingCode?`<div class="card" style="text-align:center"><h2>You're invited 🎉</h2><div class="code" style="padding-bottom:0">${esc(pendingCode)}</div><div class="note">${nw?'Pick a username and a PIN. That is all it takes, and you will join this game right after.':'Sign in and you will join this game right away. New here? Use the <b>Create account</b> tab.'}</div></div>`:''}
   <div class="card"><div class="tabs">
-    <button class="${nw?'':'on'}" data-act="mode" data-m="in">Sign in</button>
-    <button class="${nw?'on':''}" data-act="mode" data-m="new">Create account</button></div>
+    <button class="${nw?'':'on'}" data-act="mode" data-m="in"><span aria-hidden="true">🔑</span> Sign in</button>
+    <button class="${nw?'on':''}" data-act="mode" data-m="new"><span aria-hidden="true">✨</span> Create account</button></div>
     <label>Username</label><input id="un" maxlength="20" autocapitalize="none" autocomplete="username" value="${u}" placeholder="Pick a name others will recognize">
     <label>PIN (4–6 digits)</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="${nw?'new-password':'current-password'}" placeholder="••••">
     ${nw?`<label>Confirm PIN</label><input id="pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••">
@@ -471,7 +473,7 @@ function authHTML(){
     <div class="note" style="margin-top:4px">You will join that game right after you ${nw?'create your account':'sign in'}.</div></details>`}
     <div id="autherr" class="err" role="alert" aria-live="polite"></div>
     <button class="sp" data-act="auth">${nw?'Create account':'Sign in'}${pendingCode?' & join':''}</button>
-    ${nw?'':'<div style="text-align:center;margin-top:8px"><button class="del" data-act="forgot">Forgot your PIN?</button></div>'}<div class="note">That is all you need: a username and a PIN keep your history on any phone. Optional extras, like a display name or recovery email, come later.</div></div>${verTag()}`;
+    ${nw?'':'<div style="text-align:center;margin-top:8px"><button class="del" data-act="forgot"><span aria-hidden="true">❓</span> Forgot your PIN?</button></div>'}<div class="note">That is all you need: a username and a PIN keep your history on any phone. Optional extras, like a display name or recovery email, come later.</div></div>${verTag()}`;
 }
 
 const pl=(n,p)=>p&&n?`<span class="plink" data-act="player" data-u="${esc(p)}">${esc(n)}</span>`:esc(n);
@@ -494,7 +496,7 @@ function tlRow(t){
 function homeHTML(){
   const live=mine.filter(t=>t.status!=='done'),past=mine.filter(t=>t.status==='done');
   let h=`<div class="hdr"><h1>${LOGO}Pickleball Scrambler</h1>
-    <button class="avatar" data-act="dopen" data-d="profile" aria-label="Your profile">${avatarInit()}${canSetStart()&&prof.start==null?'<span class="dot" title="You can set your starting rating"></span>':''}</button></div>`;
+    <button class="pbtn" data-act="dopen" data-d="profile" aria-label="Your profile"><span class="avatar">${avatarInit()}${canSetStart()&&prof.start==null?'<span class="dot" title="You can set your starting rating"></span>':''}</span><span>Profile</span></button></div>`;
   if(pendingCode){
     h+=`<div class="card"><h2>You're invited 🎉</h2>
       <div class="code">${esc(pendingCode)}</div>
@@ -506,11 +508,11 @@ function homeHTML(){
   h+=boardCardHTML()+trendingHTML()+feedHTML()+nearbyHTML();
   if(past.length){
     const shown=showAllPast?past:past.slice(0,8);
-    h+=`<div class="card"><h2>Past tournaments</h2>${shown.map(tlRow).join('')}${past.length>8?`<div style="text-align:center;margin-top:8px"><button class="del" data-act="pastall">${showAllPast?'Show fewer':'Show all '+past.length}</button></div>`:''}</div>`;
+    h+=`<div class="card"><h2>Past tournaments</h2>${shown.map(tlRow).join('')}${past.length>8?`<div style="text-align:center;margin-top:8px"><button class="del" data-act="pastall"><span aria-hidden="true">📜</span> ${showAllPast?'Show fewer':'Show all '+past.length}</button></div>`:''}</div>`;
   }
   if(!mine.length&&!pendingCode)h+=`<div class="card"><h2>Welcome 👋</h2><div class="note" style="margin-top:0">Playing with friends tonight? Join their game with the 5-letter code, or set one up yourself.</div>
-    <div class="row" style="margin-top:10px"><button data-act="dopen" data-d="plus" data-focus="code">Join with a code</button><button class="sec" data-act="dopen" data-d="plus">Start a game</button></div></div>`;
-  if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join a game">+</button><div style="height:76px"></div>`;
+    <div class="row" style="margin-top:10px"><button data-act="dopen" data-d="plus" data-focus="code"><span aria-hidden="true">🔑</span> Join with a code</button><button class="sec" data-act="dopen" data-d="plus"><span aria-hidden="true">➕</span> Start a game</button></div></div>`;
+  if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join a game"><span aria-hidden="true">＋</span> Play</button><div style="height:76px"></div>`;
   return h;
 }
 
@@ -556,7 +558,7 @@ function eventDlgHTML(){
     body=`<div class="card"><h2>🏆 ${esc(x.result[0].n||'')}</h2><table><tr><th>#</th><th>Player</th>${open?'<th>W</th><th>L</th>':'<th>Pts</th>'}<th>+/−</th></tr>`+
       x.result.map((r,i)=>`<tr><td>${i+1}</td><td>${pl(r.n,r.p)}</td>${open?`<td>${r.w??''}</td><td>${r.l??''}</td>`:`<td>${r.pf??''}</td>`}<td>${r.d>0?'+':''}${r.d??''}</td></tr>`).join('')+`</table></div>`;
   }else body=`<div class="card"><h2>Players (${(x.players||[]).length})</h2><div>${names||'<span class="note">Nobody has joined yet.</span>'}</div></div>`;
-  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
+  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
 }
 function playerDlgHTML(){
   const nl=a=>(Array.isArray(a)?a:(a?[{n:String(a),a:false}]:[])).map(q=>pl(q.n,q.p));
@@ -572,7 +574,7 @@ function playerDlgHTML(){
     const ev=(r.event?esc(r.event):r.kind==='open'?'Open play':'Scramble')+(r.round?` · round ${r.round}`:'');
     list+=`<div class="mrow first" style="border-top:1px solid var(--bd);align-items:flex-start"><div><span class="badge" style="margin:0 8px 0 0;${r.won?'':'background:var(--bg);color:var(--neg)'}">${r.won?'W':'L'}</span><b>${r.pf}–${r.pa}</b> <span class="t">${nl(r.partner).length?'with '+nl(r.partner).join(' &amp; '):'solo'}</span> <span style="color:var(--mu)">vs ${nl(r.opps).join(' &amp; ')}</span><div class="note" style="margin:2px 0 0">${ev}${r.rated?'':' · unrated'}</div></div></div>`;
   });
-  return `${plyrBack.length?`<div style="margin-bottom:8px"><button class="del" data-act="pback" style="padding:2px 0">‹ Back to ${esc(dn(plyrBack[plyrBack.length-1].info||{username:'player'}))}</button></div>`:''}<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${esc(String(name).trim().charAt(0).toUpperCase())}</div><div><h1 style="margin:0">${esc(name)}${me?' <span class="badge">you</span>':''}</h1><div class="note" style="margin:2px 0 0">${info.display_name?'@'+esc(info.username)+' · ':''}${b?(b.ranked?(b.active?'Ranked':'Inactive'):'Not ranked yet'):'No rating yet'}${where?' · '+where:''}</div></div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>
+  return `${plyrBack.length?`<div style="margin-bottom:8px"><button class="del" data-act="pback" style="padding:2px 0">‹ Back to ${esc(dn(plyrBack[plyrBack.length-1].info||{username:'player'}))}</button></div>`:''}<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${esc(String(name).trim().charAt(0).toUpperCase())}</div><div><h1 style="margin:0">${esc(name)}${me?' <span class="badge">you</span>':''}</h1><div class="note" style="margin:2px 0 0">${info.display_name?'@'+esc(info.username)+' · ':''}${b?(b.ranked?(b.active?'Ranked':'Inactive'):'Not ranked yet'):'No rating yet'}${where?' · '+where:''}</div></div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
   <div class="stats" style="margin-bottom:14px">${tile(b?(+b.rating).toFixed(2):'–','Rating')}${tile(pos?'#'+pos+' of '+rk.length:'–','Rank')}${tile(rows.length?w+'–'+l:'–','Record')}</div>
   <div class="card"><h2>Game history${rows.length>=100?' <span class="note" style="font-weight:400">· last 100</span>':''}</h2>${list||`<div class="note" style="margin-top:0">No scored games yet. Guests and players without an account don't have a history.</div>`}</div>`;
 }
@@ -583,7 +585,7 @@ function profileDlgHTML(){
   if(me){
     const mv=+me.move;
     rating=`<div class="card"><h2>Your rating</h2><div class="stats">${tile((+me.rating).toFixed(2),'Rating')}${tile(pos?'#'+pos+' of '+rk.length:'–',me.ranked?(me.active?'Rank':'Inactive'):'Not ranked yet')}${tile(me.games,'Rated games')}</div>
-      <div class="note">${me.reliable?'Settled rating.':'<span class="badge" style="margin-left:0">settling</span> Still moving quickly, or based on few different opponents.'}${me.tougher?'<br><b>Needs tougher opponents:</b> your rating is a point or more above the best team you have beaten.':''}${Math.abs(mv)>=0.01?`<br>Last 2 weeks: <b class="${mv>0?'pos':'neg'}">${mv>0?'+':'−'}${Math.abs(mv).toFixed(2)}</b>`:''}${me.ranked?'':'<br>Ranked after 12 rated games across at least 3 events.'}</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}">See my game history</button></div>`;
+      <div class="note">${me.reliable?'Settled rating.':'<span class="badge" style="margin-left:0">settling</span> Still moving quickly, or based on few different opponents.'}${me.tougher?'<br><b>Needs tougher opponents:</b> your rating is a point or more above the best team you have beaten.':''}${Math.abs(mv)>=0.01?`<br>Last 2 weeks: <b class="${mv>0?'pos':'neg'}">${mv>0?'+':'−'}${Math.abs(mv).toFixed(2)}</b>`:''}${me.ranked?'':'<br>Ranked after 12 rated games across at least 3 events.'}</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}"><span aria-hidden="true">📈</span> See my game history</button></div>`;
   }else{
     rating=`<div class="card"><h2>Your rating</h2><div class="note" style="margin-top:0">No rating yet. It starts after your first finished event where all four players in a game have accounts. You'll start at ${(prof.start??3.5).toFixed(2)}.</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}">See my game history</button></div>`;
   }
@@ -592,7 +594,7 @@ function profileDlgHTML(){
       <div class="row"><input id="dupr2" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="Your DUPR, e.g. 3.8" value="${prof.start??''}"><button data-act="setstart" style="flex:0 0 90px">Save</button></div>
       <div class="note">You can set or change this until your first rated game. It starts your rating near your level instead of 3.5, and still counts as unproven, so it adjusts quickly if it's off.</div></div>`
     :`<div class="card"><h2>Starting rating</h2><div class="note" style="margin-top:0">Locked${prof.start!=null?` at <b>${(+prof.start).toFixed(2)}</b>`:' at the default 3.5'}. It can't be changed after your first rated game.</div></div>`;
-  return `<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${avatarInit()}</div><div><h1 style="margin:0">${esc(myName())}</h1>${prof.display?`<div class="note" style="margin:0">@${esc(prof.username)}</div>`:''}<button class="del" data-act="signout" style="padding:2px 0">Sign out</button></div></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>${rating}${accountCardHTML()}${start}${statsHTML()}${verTag()}`;
+  return `<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${avatarInit()}</div><div><h1 style="margin:0">${esc(myName())}</h1>${prof.display?`<div class="note" style="margin:0">@${esc(prof.username)}</div>`:''}<button class="del" data-act="signout" style="padding:2px 0"><span aria-hidden="true">🚪</span> Sign out</button></div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>${rating}${accountCardHTML()}${start}${statsHTML()}${verTag()}`;
 }
 function accountCardHTML(){
   const line=(k,v)=>`<div class="mrow first" style="border-top:1px solid var(--bd)"><span class="note" style="margin:0">${k}</span><span style="text-align:right">${v}</span></div>`;
@@ -600,13 +602,13 @@ function accountCardHTML(){
     ${line('Name in tournaments',prof.display?esc(prof.display):'<span class="note" style="margin:0">'+esc(prof.username)+' (username)</span>')}
     ${line('Location',prof.city?`${esc(prof.city)}, ${esc(prof.state)}${prof.pub?'':' <span class="note" style="margin:0">· private</span>'}`:'<span class="note" style="margin:0">Not set</span>')}
     ${line('Recovery email',prof.email?esc(prof.email):'<span class="note" style="margin:0">Not set</span>')}
-    <div class="row" style="margin-top:10px;flex-wrap:wrap">
-      <button class="sec sm" data-act="dopen" data-d="pedit">Edit profile</button>
-      <button class="sec sm" data-act="dopen" data-d="pemail">${prof.email?'Recovery email':'Add recovery email'}</button>
-      <button class="sec sm" data-act="dopen" data-d="ppin">Change PIN</button></div>
+    <div class="row acct" style="margin-top:10px;flex-wrap:wrap">
+      <button class="sec sm" data-act="dopen" data-d="pedit"><span aria-hidden="true">✏️</span> Edit profile</button>
+      <button class="sec sm" data-act="dopen" data-d="pemail"><span aria-hidden="true">✉️</span> ${prof.email?'Recovery email':'Add recovery email'}</button>
+      <button class="sec sm" data-act="dopen" data-d="ppin"><span aria-hidden="true">🔒</span> Change PIN</button></div>
     ${prof.email?'':'<div class="note">Without a recovery email, a forgotten PIN can not be reset.</div>'}</div>`;
 }
-const dlgHead=t=>`<div class="top"><div><button class="del" data-act="dopen" data-d="profile" style="padding:2px 0">‹ Profile</button><h2 style="margin:0;font-size:20px">${t}</h2></div><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>`;
+const dlgHead=t=>`<div class="top"><div><button class="del" data-act="dopen" data-d="profile" style="padding:2px 0">‹ 👤 Profile</button><h2 style="margin:0;font-size:20px">${t}</h2></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>`;
 function peditDlgHTML(){
   return dlgHead('Edit profile')+`<div class="card">
     <label style="margin-top:0">Display name <span style="font-weight:400">(optional)</span></label><input id="pdn" maxlength="24" placeholder="${esc(prof.username)}" value="${esc(prof.display)}" autocomplete="nickname">
@@ -644,7 +646,7 @@ function plusDlgHTML(){
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
       <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
   const first=mine.length===0;
-  return `<div class="top"><h2 style="margin:0;font-size:20px">Start or join a game</h2><button class="xbtn" data-act="dclose" aria-label="Close">✕</button></div>
+  return `<div class="top"><h2 style="margin:0;font-size:20px">Start or join a game</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
     ${first?joinCard:''}<div class="card"><h2>Start something new</h2>
       <label style="margin-top:0">Name <span style="font-weight:400">(optional)</span></label><input id="tname" maxlength="40" placeholder="e.g. Friday night scramble" value="${esc(newName)}">
       <details style="margin-top:10px" ${newWhen||newWhere||newNotes?'open':''}><summary class="note" style="cursor:pointer;margin:0">When, where and instructions (optional)</summary>
@@ -652,12 +654,12 @@ function plusDlgHTML(){
         <label>Where</label><input id="twhere" maxlength="80" placeholder="e.g. Hudson Park, courts 3–5" value="${esc(newWhere)}">
         <label>Instructions</label><textarea id="tnotes" rows="3" maxlength="500" placeholder="Parking, what to bring, how payment works…">${esc(newNotes)}</textarea></details>
       <label>Format</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
-        <button class="${!op&&!se?'on':''}" data-act="fmt" data-k="scramble">Random scramble</button>
-        <button class="${se?'on':''}" data-act="fmt" data-k="series">4-player series</button>
-        <button class="${op?'on':''}" data-act="fmt" data-k="open">Open play</button></div>
-      ${op?'':`<label>Money</label><div class="tabs" style="margin-bottom:0">
-        <button class="${newMoney?'on':''}" data-act="mon" data-v="1">Entry fee + payouts</button>
-        <button class="${newMoney?'':'on'}" data-act="mon" data-v="0">Just for fun</button></div>`}
+        <button class="${!op&&!se?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
+        <button class="${se?'on':''}" data-act="fmt" data-k="series"><span aria-hidden="true">👥</span> 4-player series</button>
+        <button class="${op?'on':''}" data-act="fmt" data-k="open"><span aria-hidden="true">🏓</span> Open play</button></div>
+      ${op?'':`<label>Money</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
+        <button class="${newMoney?'on':''}" data-act="mon" data-v="1"><span aria-hidden="true">💵</span> Entry fee + payouts</button>
+        <button class="${newMoney?'':'on'}" data-act="mon" data-v="0"><span aria-hidden="true">🎉</span> Just for fun</button></div>`}
       <button class="sp" data-act="create">${op?'Start open play':se?'Start a series':'Start a new tournament'}</button>
       <div class="note">${se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${newMoney?': you approve players once they pay':''}, and everyone enters their own scores.`:op
         ?'You pick who plays with and against whom. Players can join any time, start games when a court is free, and enter their own scores. No money in open play.'
@@ -688,11 +690,11 @@ function nameBar(){
 }
 function lobbyHTML(){
   const adm=isAdmin();
-  return `<div class="top"><h1>${ttl('Lobby')}</h1><button class="sec" data-act="home">Home</button></div>${nameBar()}
+  return `<div class="top"><h1>${ttl('Lobby')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${adm?(cash()?'You are the director. Approve players once they have paid and arrived.':'You are the director. Players are approved automatically when they join. Revoke anyone who isn\'t playing.'):'Waiting for everyone to arrive.'}</div>
   ${adm?'':'<div class="banner" id="banner"></div>'}
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
-    <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div>
+    <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share"><span aria-hidden="true">📤</span> Share</button></div>
     <div class="note">Anyone with the link can join the lobby until play starts.</div></div>
   <div class="card"><div class="row">
     ${cash()?`<div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>`:''}
@@ -700,7 +702,7 @@ function lobbyHTML(){
     <div id="rbox"></div><div class="note" id="startnote"></div></div>
   <div class="card"><div id="mlist"></div>
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
-  ${adm?`<button data-act="start" id="startbtn">${isSeries()?'Start the series':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
+  ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the series':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>`:''}`;
 }
 function renderMembers(){
   const el=$('mlist');if(!el)return;
@@ -760,7 +762,7 @@ function updateNote(){
 /* ----- play ----- */
 function playHTML(){
   const inGame=myIdx()>=0;
-  return `<div class="top"><h1>${ttl('Tournament')}</h1><button class="sec" data-act="home">Home</button></div>${nameBar()}
+  return `<div class="top"><h1>${ttl('Tournament')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub" id="pool"></div>
   ${inGame?'':'<div class="banner">You are watching this tournament.</div>'}
   <div id="mybanner"></div><div id="strip"></div>
@@ -769,7 +771,7 @@ function playHTML(){
   <div class="card" id="ctl"></div>
   <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
     <div class="note" id="rnote"></div><div class="note" id="tienote"></div></div>
-  ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del">Delete tournament</button></div>`:''}`;
+  ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>`:''}`;
 }
 function renderTabs(){
   $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:'Round '+(i+1)}${r.some(m=>m.fix)?' ✎':''}</button>`).join('');
@@ -816,7 +818,7 @@ function renderBanner(){
   const j=R.findIndex(inMatch),m=j>=0?R[j]:null;
   if(m&&!filled(m)){
     const x=sides(m);
-    el.innerHTML=`<div class="mybn"><div class="k">Your game now</div><div class="v">${lab(cr-1,j,m)}</div><div class="v" style="font-weight:600">${x.pt?'with '+x.pt+' · ':''}vs ${x.op}</div>${nx}<button data-act="goscore">Enter your score</button></div>`;
+    el.innerHTML=`<div class="mybn"><div class="k">Your game now</div><div class="v">${lab(cr-1,j,m)}</div><div class="v" style="font-weight:600">${x.pt?'with '+x.pt+' · ':''}vs ${x.op}</div>${nx}<button data-act="goscore"><span aria-hidden="true">✏️</span> Enter your score</button></div>`;
   }else if(m){
     const wait=R.filter(g=>!filled(g)).map(g=>`${team(g.a)} vs ${team(g.b)}`);
     el.innerHTML=`<div class="mybn quiet"><div class="k">Your score is in ✓</div><div class="v" style="font-weight:600">${wait.length?'Waiting for '+wait.join(' · ')+'. The next '+unit().toLowerCase()+' starts automatically.':'All scores are in.'}</div>${m.fix?`<div class="nx" style="color:var(--gold)">✎ This score was corrected by ${esc(m.fix.by)} (was ${esc(m.fix.was)}).</div>`:''}${nx}</div>`;
@@ -843,7 +845,7 @@ function renderCtl(){
   const auto=last?'':` The next ${unit().toLowerCase()} starts by itself once every game has a score.`;
   if(isAdmin()){
     if(last&&done&&finAsk)h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>Finish this tournament?</b><div class="note" style="margin:6px 0 0">Scores can't be changed after this. Payouts and ratings are final.</div><div class="row" style="margin-top:8px"><button data-act="finishok">Yes, finish</button><button class="sec" data-act="finishno">Not yet</button></div></div>`;
-    else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'Finish tournament':'Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
+    else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'<span aria-hidden="true">🏁</span> Finish tournament':'<span aria-hidden="true">⏭</span> Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
     if(!done)h+=`<div class="note">${last?'Finish unlocks when every game has a score.':`The next ${unit().toLowerCase()} starts by itself once every game has a score.`} You can enter or fix any score yourself.</div>`;
   }else{
     h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':unit()+' complete. Waiting for the director to start '+unit().toLowerCase()+' '+(cr+1)+'.'):'Enter your score as soon as your game ends.'+auto}</div>`;
@@ -869,11 +871,11 @@ function renderPlayBody(){
 function doneHTML(){
   if(T.kind==='open')return doneOpenHTML();
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
-  return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home">Home</button></div>${nameBar()}
+  return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:' · just for fun'}</div>
   <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
   r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
-  `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete tournament</button></div>':''}`;
+  `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>':''}`;
 }
 function doneGamesHTML(){
   if(!Array.isArray(T.rounds))return '';
@@ -893,7 +895,7 @@ const isMe=x=>!!prof&&String(x.username).toLowerCase()===prof.username.toLowerCa
 const rankedNow=()=>board.filter(x=>x.ranked&&x.active);
 const mvHTML=x=>{const v=+x.move;return v>=0.03?`<span class="mv pos">▲ ${v.toFixed(2)}</span>`:v<=-0.03?`<span class="mv neg">▼ ${Math.abs(v).toFixed(2)}</span>`:''};
 function boardCardHTML(){
-  const head=`<div class="top"><h2 style="margin:0">Leaderboard</h2><button class="sec sm" data-act="board">See all ›</button></div>`;
+  const head=`<div class="top"><h2 style="margin:0">Leaderboard</h2><button class="sec sm" data-act="board"><span aria-hidden="true">🏆</span> Full leaderboard ›</button></div>`;
   if(!board.length)return `<div class="card">${head}<div class="note">No ratings yet. They start after the first finished event.</div></div>`;
   const rk=rankedNow(),ranked=rk.length>0,list=ranked?rk:board.filter(x=>x.active),top=list.slice(0,5),me=board.find(isMe);
   const row=(x,pos)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${pos}</td><td>${esc(dn(x))}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${mvHTML(x)}</td></tr>`;
@@ -916,7 +918,7 @@ function boardHTML(){
   const rk=rankedNow(),ia=board.filter(x=>x.ranked&&!x.active),pv=board.filter(x=>!x.ranked);
   const dt=d=>{const x=new Date(d),o={month:'short',day:'numeric'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleDateString(undefined,o)};
   const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>Rating</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${num?i+1:''}</td><td>${esc(dn(x))}${x.reliable?'':'<span class="badge">settling</span>'}${x.tougher?'<div class="note" style="margin:2px 0 0">needs tougher opponents</div>':''}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
-  let h=`<div class="top"><h1>Leaderboard</h1><button class="sec" data-act="home">Home</button></div>
+  let h=`<div class="top"><h1>Leaderboard</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>
   <div class="sub">Everyone's rating, 2.0 to 8.0. New players start at 3.5.</div>`;
   if(!board.length)h+=`<div class="card"><div class="note" style="margin:0">No ratings yet. Ratings are built from finished events where all four players in a game have accounts.</div></div>`;
   else{
@@ -937,7 +939,7 @@ const gCan=g=>T.status==='playing'&&(isAdmin()||gMine(g));
 const myMemberId=()=>myMember()?.id||'';
 function defaultPick(){return {p1:myMemberId(),p2:'',o1:'',o2:''}}
 function openHTML(){
-  return `<div class="top"><h1>${ttl('Open play')}</h1><button class="sec" data-act="home">Home</button></div>${nameBar()}
+  return `<div class="top"><h1>${ttl('Open play')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${isAdmin()?'You are the host. ':''}Anyone with the code can join any time. Pick your partner and opponents, play, then enter the score.</div>
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
     <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share">Share</button></div></div>
@@ -1003,7 +1005,7 @@ function renderOpen(){
 }
 function doneOpenHTML(){
   const r=T.result||[],fin=games.filter(g=>gDone(g)&&!g.voided).slice().reverse();
-  return `<div class="top"><h1>${ttl('Open play results')}</h1><button class="sec" data-act="home">Home</button></div>${nameBar()}
+  return `<div class="top"><h1>${ttl('Open play results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${fin.length} games</div>
   <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
   r.map((x,i)=>`<tr class="${x.p&&prof&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${pl(x.n,x.p)}</td><td>${x.g}</td><td>${x.w}</td><td>${x.l}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
