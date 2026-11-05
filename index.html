@@ -214,12 +214,12 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v29 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v30 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
 const unit=()=>isSeries()?'Game':'Round';
-const fmtName=x=>x.kind==='open'?'Open play':x.format==='series'?'4-player series':'Scramble';
+const fmtName=x=>x.kind==='open'?'Open play':x.format==='series'?'4-player rotation':'Scramble';
 const cash=()=>!!T&&T.kind!=='open'&&T.money!==false;
 /* event type: 'money' (Moneyball + Rated), 'rated' (no money) or 'fun' (no money, no rating) */
 const typeOf=t=>!t?'rated':t.kind!=='open'&&t.money!==false?'money':t.rated===false?'fun':'rated';
@@ -371,7 +371,7 @@ function standings(){
 }
 /* Ties: players level on the main score (points, or series won in a series) and on total games won share a place.
    Their prize money is pooled and split evenly in whole units of the fee. Any leftover unit goes by a random draw
-   that is seeded by the tournament and the tied players, so every phone shows the same winner of the draw. */
+   that is seeded by the event and the tied players, so every phone shows the same winner of the draw. */
 function sameRank(x,y){return isSeries()?x.sw===y.sw&&x.gw===y.gw:x.pf===y.pf&&x.gw===y.gw}
 function seedRand(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19}
   return()=>{h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);h^=h>>>16;return(h>>>0)/4294967296}}
@@ -408,7 +408,7 @@ function tieNotes(rows,c){
 const team=t=>t.map(i=>esc(T.players[i])).join(' &amp; ');
 const link=()=>location.href.split('#')[0].split('?')[0]+'?t='+T.code;
 
-/* ---------- my stats (from finished tournaments) ---------- */
+/* ---------- my stats (from finished events) ---------- */
 function myResults(){
   return mine.filter(t=>t.status==='done'&&t.kind!=='open'&&t.money!==false&&Array.isArray(t.result)).map(t=>{
     const i=t.result.findIndex(x=>x.p===prof.id);
@@ -425,7 +425,7 @@ function statsHTML(){
   return `<div class="card"><h2>Your record</h2><div class="stats">
     ${tile(rs.length,'Played')}${tile(firsts,'1st places')}${tile(avg,'Avg finish')}
     ${tile($$(spent),'Spent')}${tile($$(won),'Won')}${tile(money(net),'Net · '+(roi>0?'+':'')+roi+'% ROI',cls(net))}
-  </div><div class="note">Cashed in ${cashed} of ${rs.length}. Finished tournaments only.</div></div>`;
+  </div><div class="note">Cashed in ${cashed} of ${rs.length}. Finished events only.</div></div>`;
 }
 
 /* ---------- views ---------- */
@@ -461,7 +461,7 @@ function authHTML(){
   if(authMode==='forgot')return forgotHTML();
   const nw=authMode==='new',u=esc(ls.get('pb_user')||'');
   return TITLE+`<div class="sub">Random partners each round. No repeat partners, max 2 meetings with any opponent.</div>
-  ${pendingCode?`<div class="card" style="text-align:center"><h2>You're invited 🎉</h2><div class="code" style="padding-bottom:0">${esc(pendingCode)}</div><div class="note">${nw?'Pick a username and a PIN. That is all it takes, and you will join this game right after.':'Sign in and you will join this game right away. New here? Use the <b>Create account</b> tab.'}</div></div>`:''}
+  ${pendingCode?`<div class="card" style="text-align:center"><h2>You're invited 🎉</h2><div class="code" style="padding-bottom:0">${esc(pendingCode)}</div><div class="note">${nw?'Pick a username and a PIN. That is all it takes, and you will join this event right after.':'Sign in and you will join this event right away. New here? Use the <b>Create account</b> tab.'}</div></div>`:''}
   <div class="card"><div class="tabs">
     <button class="${nw?'':'on'}" data-act="mode" data-m="in"><span aria-hidden="true">🔑</span> Sign in</button>
     <button class="${nw?'on':''}" data-act="mode" data-m="new"><span aria-hidden="true">✨</span> Create account</button></div>
@@ -473,7 +473,7 @@ function authHTML(){
     <div class="note" style="margin-top:4px">Starts your rating near your level instead of 3.5. It still counts as unproven, so it adjusts quickly if it's off. You can set or change it in your profile until your first rated game.</div></details>`:''}
     ${pendingCode?'':`<details style="margin-top:12px"><summary class="note" style="cursor:pointer;margin:0">Have an invite code?</summary>
     <label>Invite code</label><input id="icode" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
-    <div class="note" style="margin-top:4px">You will join that game right after you ${nw?'create your account':'sign in'}.</div></details>`}
+    <div class="note" style="margin-top:4px">You will join that event right after you ${nw?'create your account':'sign in'}.</div></details>`}
     <div id="autherr" class="err" role="alert" aria-live="polite"></div>
     <button class="sp" data-act="auth">${nw?'Create account':'Sign in'}${pendingCode?' & join':''}</button>
     ${nw?'':'<div style="text-align:center;margin-top:8px"><button class="del" data-act="forgot"><span aria-hidden="true">❓</span> Forgot your PIN?</button></div>'}<div class="note">That is all you need: a username and a PIN keep your history on any phone. Optional extras, like a display name or recovery email, come later.</div></div>${verTag()}`;
@@ -511,11 +511,11 @@ function homeHTML(){
   h+=boardCardHTML()+trendingHTML()+feedHTML()+nearbyHTML();
   if(past.length){
     const shown=showAllPast?past:past.slice(0,8);
-    h+=`<div class="card"><h2>Past tournaments</h2>${shown.map(tlRow).join('')}${past.length>8?`<div style="text-align:center;margin-top:8px"><button class="del" data-act="pastall"><span aria-hidden="true">📜</span> ${showAllPast?'Show fewer':'Show all '+past.length}</button></div>`:''}</div>`;
+    h+=`<div class="card"><h2>Past events</h2>${shown.map(tlRow).join('')}${past.length>8?`<div style="text-align:center;margin-top:8px"><button class="del" data-act="pastall"><span aria-hidden="true">📜</span> ${showAllPast?'Show fewer':'Show all '+past.length}</button></div>`:''}</div>`;
   }
-  if(!mine.length&&!pendingCode)h+=`<div class="card"><h2>Welcome 👋</h2><div class="note" style="margin-top:0">Playing with friends tonight? Join their game with the 5-letter code, or set one up yourself.</div>
-    <div class="row" style="margin-top:10px"><button data-act="dopen" data-d="plus" data-focus="code"><span aria-hidden="true">🔑</span> Join with a code</button><button class="sec" data-act="dopen" data-d="plus"><span aria-hidden="true">➕</span> Start a game</button></div></div>`;
-  if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join a game"><span aria-hidden="true">＋</span> Play</button><div style="height:76px"></div>`;
+  if(!mine.length&&!pendingCode)h+=`<div class="card"><h2>Welcome 👋</h2><div class="note" style="margin-top:0">Playing with friends tonight? Join their event with the 5-letter code, or set one up yourself.</div>
+    <div class="row" style="margin-top:10px"><button data-act="dopen" data-d="plus" data-focus="code"><span aria-hidden="true">🔑</span> Join with a code</button><button class="sec" data-act="dopen" data-d="plus"><span aria-hidden="true">➕</span> Start an event</button></div></div>`;
+  if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join an event"><span aria-hidden="true">＋</span> Event</button><div style="height:76px"></div>`;
   return h;
 }
 
@@ -615,7 +615,7 @@ const dlgHead=t=>`<div class="top"><div><button class="del" data-act="dopen" dat
 function peditDlgHTML(){
   return dlgHead('Edit profile')+`<div class="card">
     <label style="margin-top:0">Display name <span style="font-weight:400">(optional)</span></label><input id="pdn" maxlength="24" placeholder="${esc(prof.username)}" value="${esc(prof.display)}" autocomplete="nickname">
-    <div class="note" style="margin-top:4px">Shown in tournaments next to your username, like <b>Bob P (bp7497)</b>, so the director and players know who is who. It doesn't have to be unique. Your username still signs you in.</div>
+    <div class="note" style="margin-top:4px">Shown in events next to your username, like <b>Bob P (bp7497)</b>, so the director and players know who is who. It doesn't have to be unique. Your username still signs you in.</div>
     <label>City <span style="font-weight:400">(optional)</span></label><input id="pcity" maxlength="40" placeholder="e.g. Austin" value="${esc(prof.city)}" autocomplete="address-level2">
     <label>State</label><select id="pstate" autocomplete="address-level1"><option value="">Choose a state</option>${STATES.map(st=>`<option${st===prof.state?' selected':''}>${st}</option>`).join('')}</select>
     <label style="display:flex;gap:10px;align-items:flex-start;color:var(--tx);margin-top:14px"><input id="ppub" type="checkbox" style="width:auto;margin-top:3px"${prof.pub?' checked':''}><span>Let players in my state find me<br><span class="note" style="margin:0">Others who share their location can see your name, city and rating. Nobody sees it unless you turn this on, and you can only see nearby players when yours is on too.</span></span></label>
@@ -649,7 +649,7 @@ function plusDlgHTML(){
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
       <button data-act="join" style="flex:0 0 90px">Join</button></div></div>`;
   const first=mine.length===0;
-  return `<div class="top"><h2 style="margin:0;font-size:20px">Start or join a game</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
+  return `<div class="top"><h2 style="margin:0;font-size:20px">Start or join an event</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
     ${first?joinCard:''}<div class="card"><h2>Start something new</h2>
       <label style="margin-top:0">Name <span style="font-weight:400">(optional)</span></label><input id="tname" maxlength="40" placeholder="e.g. Friday night scramble" value="${esc(newName)}">
       <details style="margin-top:10px" ${newWhen||newWhere||newNotes?'open':''}><summary class="note" style="cursor:pointer;margin:0">When, where and instructions (optional)</summary>
@@ -658,14 +658,14 @@ function plusDlgHTML(){
         <label>Instructions</label><textarea id="tnotes" rows="3" maxlength="500" placeholder="Parking, what to bring, how payment works…">${esc(newNotes)}</textarea></details>
       <label>Format</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
         <button class="${!op&&!se?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
-        <button class="${se?'on':''}" data-act="fmt" data-k="series"><span aria-hidden="true">👥</span> 4-player series</button>
+        <button class="${se?'on':''}" data-act="fmt" data-k="series"><span aria-hidden="true">👥</span> 4-player rotation</button>
         <button class="${op?'on':''}" data-act="fmt" data-k="open"><span aria-hidden="true">🏓</span> Open play</button></div>
       <label>Type</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
         ${op?'':`<button class="${newType==='money'?'on':''}" data-act="typ" data-v="money"><span aria-hidden="true">💵</span> Moneyball + Rated</button>`}
         <button class="${newType==='rated'?'on':''}" data-act="typ" data-v="rated"><span aria-hidden="true">📊</span> Rated</button>
         <button class="${newType==='fun'?'on':''}" data-act="typ" data-v="fun"><span aria-hidden="true">🎉</span> Just for fun</button></div>
       <div class="note" style="margin-top:6px">${newType==='money'?'Entry fee and payouts. Games to 11, win by 1. Counts toward ratings.':newType==='rated'?'No money. Counts toward ratings.':'No money and no rating. Nothing here changes anyone\'s rating.'}</div>
-      <button class="sp" data-act="create">${op?'Start open play':se?'Start a series':'Start a new tournament'}</button>
+      <button class="sp" data-act="create">${op?'Start open play':se?'Start a 4-player rotation':'Start a new event'}</button>
       <div class="note">${se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${(newType==='money')?': you approve players once they pay':''}, and everyone enters their own scores.`:op
         ?'You pick who plays with and against whom. Players can join any time, start games when a court is free, and enter their own scores. No money in open play.'
         :`Teams are drawn for you each round, no repeat partners. You'll be the director: you ${(newType==='money')?'approve players once they pay, ':''}start each round, and everyone enters their own scores.`}</div></div>
@@ -707,7 +707,7 @@ function lobbyHTML(){
     <div id="rbox"></div><div class="note" id="startnote"></div></div>
   <div class="card"><div id="mlist"></div>
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
-  ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the series':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>`:''}`;
+  ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
 }
 function renderMembers(){
   const el=$('mlist');if(!el)return;
@@ -757,7 +757,7 @@ function updateNote(){
       if(r>7){const alt=[n-1,n+1].filter(m=>validN(m)&&defaultRounds(m)<=7);t+=` That's a long event, because everyone has to play the same number of games.`+(alt.length?` ${alt.join(' or ')} players would be shorter.`:'')}
       if(w)t+=` ${w} still waiting will watch as spectators.`;
       el.textContent=t;
-    }else el.textContent=isSeries()?(n<4?`A series needs exactly 4 approved players (${4-n} more).`:`A series needs exactly 4 players. Revoke ${n-4}.`):(n<4?`Need at least 4 approved players (${4-n} more).`:'Max 16 players. Revoke '+(n-16)+'.');
+    }else el.textContent=isSeries()?(n<4?`A series needs exactly 4 approved players (${4-n} more).`:`A 4-player rotation needs exactly 4 players. Revoke ${n-4}.`):(n<4?`Need at least 4 approved players (${4-n} more).`:'Max 16 players. Revoke '+(n-16)+'.');
   }
   const b=$('startbtn');if(b)b.disabled=!ok;
   const bn=$('banner');
@@ -767,16 +767,16 @@ function updateNote(){
 /* ----- play ----- */
 function playHTML(){
   const inGame=myIdx()>=0;
-  return `<div class="top"><h1>${ttl('Tournament')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
+  return `<div class="top"><h1>${ttl('Event')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub" id="pool"></div>
-  ${inGame?'':'<div class="banner">You are watching this tournament.</div>'}
+  ${inGame?'':'<div class="banner">You are watching this event.</div>'}
   <div id="mybanner"></div><div id="strip"></div>
   <div class="tabs" id="tabs"></div>
   <div class="card" id="round"></div>
   <div class="card" id="ctl"></div>
   <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
     <div class="note" id="rnote"></div><div class="note" id="tienote"></div></div>
-  ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>`:''}`;
+  ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
 }
 function renderTabs(){
   $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:'Round '+(i+1)}${r.some(m=>m.fix)?' ✎':''}</button>`).join('');
@@ -849,8 +849,8 @@ function renderCtl(){
   if(waiting.length)h+=`<div class="note">Still playing: ${waiting.join(' · ')}</div>`;
   const auto=last?'':` The next ${unit().toLowerCase()} starts by itself once every game has a score.`;
   if(isAdmin()){
-    if(last&&done&&finAsk)h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>Finish this tournament?</b><div class="note" style="margin:6px 0 0">Scores can't be changed after this. Payouts and ratings are final.</div><div class="row" style="margin-top:8px"><button data-act="finishok">Yes, finish</button><button class="sec" data-act="finishno">Not yet</button></div></div>`;
-    else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'<span aria-hidden="true">🏁</span> Finish tournament':'<span aria-hidden="true">⏭</span> Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
+    if(last&&done&&finAsk)h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>Finish this event?</b><div class="note" style="margin:6px 0 0">Scores can't be changed after this. Payouts and ratings are final.</div><div class="row" style="margin-top:8px"><button data-act="finishok">Yes, finish</button><button class="sec" data-act="finishno">Not yet</button></div></div>`;
+    else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'<span aria-hidden="true">🏁</span> Finish event':'<span aria-hidden="true">⏭</span> Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
     if(!done)h+=`<div class="note">${last?'Finish unlocks when every game has a score.':`The next ${unit().toLowerCase()} starts by itself once every game has a score.`} You can enter or fix any score yourself.</div>`;
   }else{
     h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':unit()+' complete. Waiting for the director to start '+unit().toLowerCase()+' '+(cr+1)+'.'):'Enter your score as soon as your game ends.'+auto}</div>`;
@@ -880,7 +880,7 @@ function doneHTML(){
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>
   <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
   r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
-  `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete tournament</button></div>':''}`;
+  `</table>${r.some(x=>x.tie)?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
 }
 function doneGamesHTML(){
   if(!Array.isArray(T.rounds))return '';
@@ -1003,9 +1003,9 @@ function renderOpen(){
     const isDir=m.profile_id&&m.profile_id===T.admin_id,has=games.some(g=>[...g.a,...g.b].some(x=>x.n===m.name));
     return `<div class="mrow${i?'':' first'}"><div>${esc(m.name)}${isDir?'<span class="badge">host</span>':''}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div>${adm&&!isDir&&!has?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''}</div>`;
   }).join('')+(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:'')+'</div>';
-  if(adm)h+=`<button class="sec" data-act="gend">End session</button>
+  if(adm)h+=`<button class="sec" data-act="gend">End event</button>
     <div class="note" style="text-align:center">${live.length?'Finish or cancel games in progress first.':'Saves the standings. Games stay on record.'}</div>
-    <div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete session</button></div>`;
+    <div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete event</button></div>`;
   el.innerHTML=h;
 }
 function doneOpenHTML(){
@@ -1014,7 +1014,7 @@ function doneOpenHTML(){
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${fin.length} games</div>
   <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
   r.map((x,i)=>`<tr class="${x.p&&prof&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${pl(x.n,x.p)}</td><td>${x.g}</td><td>${x.w}</td><td>${x.l}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
-  `</table></div><div class="card"><h2>Games</h2>${fin.map(gameRow).join('')}</div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete session</button></div>':''}`;
+  `</table></div><div class="card"><h2>Games</h2>${fin.map(gameRow).join('')}</div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete event</button></div>':''}`;
 }
 
 /* ---------- data ---------- */
@@ -1070,7 +1070,7 @@ async function refresh(){
   try{
     const {data,error}=await sb.from('tournaments').select('*').eq('id',T.id).maybeSingle();
     if(error)return;
-    if(!data){toast("You're no longer in this tournament");await goHome();return}
+    if(!data){toast("You're no longer in this event");await goHome();return}
     const wasAdmin=isAdmin(),oldCR=T.current_round;
     const oldFix=new Map();(T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix)oldFix.set(ri+'-'+j,m.fix.at)}));
     T=data;await loadMembers();
@@ -1253,7 +1253,7 @@ const actions={
   },
   gedit(el){editG=el.dataset.g||'';renderOpen()},
   async gcancel(el){await rpc('cancel_game',{p_gid:el.dataset.g});await loadGames();renderOpen()},
-  gend(el){twoTap(el,'Tap again to end the session',async()=>{await rpc('close_session',{p_tid:T.id});await refresh()})},
+  gend(el){twoTap(el,'Tap again to end the event',async()=>{await rpc('close_session',{p_tid:T.id});await refresh()})},
   async join(){
     const c=cleanCode($('code')?.value||pendingCode);
     if(c.length<5){toast('Enter the 5-character code');return}
@@ -1262,7 +1262,7 @@ const actions={
     await openT(id);
   },
   noinvite(){pendingCode='';history.replaceState(null,'',location.pathname);render()},
-  async open(el){if(!await openT(el.dataset.id))toast('Could not open that tournament')},
+  async open(el){if(!await openT(el.dataset.id))toast('Could not open that event')},
   home(){return goHome()},
   async setstart(){
     const raw=($('dupr2').value||'').trim();let v=null;
@@ -1272,7 +1272,7 @@ const actions={
   async board(){await loadMine();view='board';render();window.scrollTo(0,0)},
   async share(){
     const url=link();
-    if(navigator.share){try{await navigator.share({title:'Pickleball Scrambler',text:'Join my pickleball tournament! Code '+T.code,url});return}catch(e){if(e.name==='AbortError')return}}
+    if(navigator.share){try{await navigator.share({title:'Pickleball Scrambler',text:'Join my pickleball event! Code '+T.code,url});return}catch(e){if(e.name==='AbortError')return}}
     try{await navigator.clipboard.writeText(url);toast('Link copied')}catch(e){$('lnk').select();toast('Copy the link shown above')}
   },
   async addguest(){
