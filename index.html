@@ -235,7 +235,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v41 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v42 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -898,7 +898,7 @@ function playerDlgHTML(){
     list+=`<div class="mrow first" style="border-top:1px solid var(--bd);align-items:flex-start"><div><span class="badge" style="margin:0 8px 0 0;${r.won?'':'background:var(--bg);color:var(--neg)'}">${r.won?'W':'L'}</span><b>${r.pf}–${r.pa}</b> <span class="t">${nl(r.partner).length?'with '+nl(r.partner).join(' &amp; '):'solo'}</span> <span style="color:var(--mu)">vs ${nl(r.opps).join(' &amp; ')}</span><div class="note" style="margin:2px 0 0">${ev}${r.rated?'':' · unrated'}</div></div></div>`;
   });
   return `${plyrBack.length?`<div style="margin-bottom:8px"><button class="del" data-act="pback" style="padding:2px 0">‹ Back to ${esc(dn(plyrBack[plyrBack.length-1].info||{username:'player'}))}</button></div>`:''}<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="avatar lg">${esc(String(name).trim().charAt(0).toUpperCase())}</div><div><h1 style="margin:0">${esc(name)}${me?' <span class="badge">you</span>':''}</h1><div class="note" style="margin:2px 0 0">${info.display_name?'@'+esc(info.username)+' · ':''}${b?(b.ranked?(b.active?'Ranked':'Inactive'):'Not ranked yet'):'No rating yet'}${where?' · '+where:''}</div></div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
-  <div class="stats" style="margin-bottom:14px">${tile(b?(+b.rating).toFixed(2):'–','Rating')}${tile(pos?'#'+pos+' of '+rk.length:'–','Rank')}${tile(rows.length?w+'–'+l:'–','Record')}</div>
+  <div class="stats" style="margin-bottom:14px">${tile(b?(+b.rating).toFixed(2):'–','PBAR')}${tile(pos?'#'+pos+' of '+rk.length:'–','Rank')}${tile(rows.length?w+'–'+l:'–','Record')}</div>
   <div class="card"><h2>Game history${rows.length>=100?' <span class="note" style="font-weight:400">· last 100</span>':''}</h2>${list||`<div class="note" style="margin-top:0">No scored games yet. Guests and players without an account don't have a history.</div>`}</div>`;
 }
 function profileDlgHTML(){
@@ -907,13 +907,13 @@ function profileDlgHTML(){
   let rating;
   if(me){
     const mv=+me.move;
-    rating=`<div class="card"><h2>Your rating</h2><div class="stats">${tile((+me.rating).toFixed(2),'Rating')}${tile(pos?'#'+pos+' of '+rk.length:'–',me.ranked?(me.active?'Rank':'Inactive'):'Not ranked yet')}${tile(me.games,'Rated games')}</div>
+    rating=`<div class="card"><h2>Your PBAR</h2><div class="stats">${tile((+me.rating).toFixed(2),'PBAR')}${tile(pos?'#'+pos+' of '+rk.length:'–',me.ranked?(me.active?'Rank':'Inactive'):'Not ranked yet')}${tile(me.games,'Rated games')}</div>
       <div class="note">${me.reliable?'Settled rating.':'<span class="badge" style="margin-left:0">settling</span> Still moving quickly, or based on few different opponents.'}${me.tougher?'<br><b>Needs tougher opponents:</b> your rating is a point or more above the best team you have beaten.':''}${Math.abs(mv)>=0.01?`<br>Last 2 weeks: <b class="${mv>0?'pos':'neg'}">${mv>0?'+':'−'}${Math.abs(mv).toFixed(2)}</b>`:''}${me.ranked?'':'<br>Ranked after 12 rated games across at least 3 events.'}</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}"><span aria-hidden="true">📈</span> See my game history</button></div>`;
   }else{
-    rating=`<div class="card"><h2>Your rating</h2><div class="note" style="margin-top:0">No rating yet. It starts after your first finished rated event where all four players in a game have accounts. You'll start at ${(prof.start??3.5).toFixed(2)}.</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}">See my game history</button></div>`;
+    rating=`<div class="card"><h2>Your PBAR</h2><div class="note" style="margin-top:0">No rating yet. It starts after your first finished rated event where all four players in a game have accounts. You'll start at ${(prof.start??3.5).toFixed(2)}.</div><button class="sec sp" data-act="player" data-u="${esc(prof.id)}">See my game history</button></div>`;
   }
   const start=canSetStart()
-    ?`<div class="card"><h2>Starting rating <span class="note" style="font-weight:400">· optional</span></h2>
+    ?`<div class="card"><h2>Starting PBAR <span class="note" style="font-weight:400">· optional</span></h2>
       <div class="row"><input id="dupr2" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="Your DUPR, e.g. 3.8" value="${prof.start??''}"><button data-act="setstart" style="flex:0 0 90px">Save</button></div>
       <div class="note">You can set or change this until your first rated game. It starts your rating near your level instead of 3.5, and still counts as unproven, so it adjusts quickly if it's off.</div></div>`
     :`<div class="card"><h2>Starting rating</h2><div class="note" style="margin-top:0">Locked${prof.start!=null?` at <b>${(+prof.start).toFixed(2)}</b>`:' at the default 3.5'}. It can't be changed after your first rated game.</div></div>`;
@@ -1353,16 +1353,16 @@ function trendingHTML(){
 function boardHTML(){
   const rk=rankedNow(),ia=board.filter(x=>x.ranked&&!x.active),pv=board.filter(x=>!x.ranked);
   const dt=d=>{const x=new Date(d),o={month:'short',day:'numeric'};if(x.getFullYear()!==new Date().getFullYear())o.year='numeric';return x.toLocaleDateString(undefined,o)};
-  const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>Rating</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${num?i+1:''}</td><td>${esc(dn(x))}${x.reliable?'':'<span class="badge">settling</span>'}${x.tougher?'<div class="note" style="margin:2px 0 0">needs tougher opponents</div>':''}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
+  const tbl=(rows,num,cl='')=>`<table class="${cl}"><tr><th>${num?'#':''}</th><th>Player</th><th>PBAR</th><th>Games</th><th>Last</th></tr>`+rows.map((x,i)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${num?i+1:''}</td><td>${esc(dn(x))}${x.reliable?'':'<span class="badge">settling</span>'}${x.tougher?'<div class="note" style="margin:2px 0 0">needs tougher opponents</div>':''}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${x.games}</td><td>${dt(x.last_played)}</td></tr>`).join('')+'</table>';
   let h=`<div class="top"><h1>Leaderboard</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>
-  <div class="sub">Everyone's rating, 2.0 to 8.0. New players start at 3.5.</div>`;
+  <div class="sub">Everyone's PBAR (Pickleball Athlete Rating), 2.0 to 8.0. New players start at 3.5.</div>`;
   if(!board.length)h+=`<div class="card"><div class="note" style="margin:0">No ratings yet. Ratings are built from finished rated events where all four players in a game have accounts. Just-for-fun events don't count.</div></div>`;
   else{
     h+=`<div class="card"><h2>Ranked (${rk.length})</h2>${rk.length?tbl(rk,true):'<div class="note" style="margin:0">Nobody is ranked yet. You need 12 rated games across at least 3 events.</div>'}</div>`;
     if(pv.length)h+=`<div class="card"><h2>Not ranked yet (${pv.length})</h2>${tbl(pv,false)}<div class="note">Listed once a player has 12 rated games across at least 3 events.</div></div>`;
     if(ia.length)h+=`<div class="card dim"><h2>Inactive (${ia.length})</h2>${tbl(ia,false)}<div class="note">No games in the last 6 months. They return to the ranking when they play again.</div></div>`;
   }
-  h+=`<div class="card"><h2>How ratings work</h2><div class="note" style="margin-top:0">Every game compares how many points each side won with what their ratings predicted. Winning never lowers your rating and losing never raises it, so a favorite who wins by less than expected stays put. Beating stronger players moves you more, and beating weaker ones counts for less and less the further ahead of them you already are. Wins over brand-new or unproven players count for less too. Your rating can't climb far past the players you've beaten, so to keep rising you have to beat higher-rated players. New or returning players adjust faster. Games with a guest (no account) don't count.</div>
+  h+=`<div class="card"><h2>How PBAR works</h2><div class="note" style="margin-top:0">Every game compares how many points each side won with what their ratings predicted. Winning never lowers your rating and losing never raises it, so a favorite who wins by less than expected stays put. Beating stronger players moves you more, and beating weaker ones counts for less and less the further ahead of them you already are. Wins over brand-new or unproven players count for less too. Your rating can't climb far past the players you've beaten, so to keep rising you have to beat higher-rated players. New or returning players adjust faster. Games with a guest (no account) don't count.</div>
     <div class="note"><b>Settling:</b> the rating is still moving quickly, or it rests on only a few different opponents.<br><b>Needs tougher opponents:</b> your rating is a point or more above the best team you've beaten. It isn't proven yet. Beat higher-rated players to confirm it.</div></div>`;
   return h;
 }
