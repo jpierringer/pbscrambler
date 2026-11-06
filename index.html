@@ -166,7 +166,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let NOTE=null,endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[],extraReady=false,newNights=4,leagues=[],LN=[],pendingTeam=0;
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -235,7 +235,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v40 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v41 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -790,7 +790,7 @@ function eventReport(){
     });
     blocks.push({h:'Games',lines});
   }
-  return {title:T.name||fmtName(T),meta,blocks};
+  return {title:T.name||fmtName(T),meta,blocks:withNote(blocks)};
 }
 function leagueReport(){
   const nn=T.nights||LN.length,played=LN.filter(n=>n.status==='done').length,rows=T.status==='lobby'?[]:seasonRows();
@@ -806,7 +806,14 @@ function leagueReport(){
     else blocks.push({h,lines:[n.status==='playing'?`In progress (round ${n.current_round})`:'Not played yet']});
   });
   if((T.teams||[]).length)blocks.push({h:'Teams',lines:T.teams.map(t=>t.n)});
-  return {title:T.name||'League',meta,blocks};
+  return {title:T.name||'League',meta,blocks:withNote(blocks)};
+}
+/* a public director's note goes first on the report; a private one never leaves the director's screen */
+const withNote=blocks=>NOTE&&NOTE.is_public?[{h:"Director's note",lines:String(NOTE.note).split(/\n+/).map(x=>x.trim()).filter(Boolean)},...blocks]:blocks;
+function noteCard(){
+  if(!NOTE)return '';
+  const own=isAdmin();if(!NOTE.is_public&&!own)return '';
+  return `<div class="card"><div class="top"><h2 style="margin:0"><span aria-hidden="true">📝</span> Director's note</h2>${NOTE.is_public?'':'<span class="badge">🔒 Only you</span>'}</div><div style="white-space:pre-wrap;margin-top:6px">${esc(NOTE.note)}</div></div>`;
 }
 const currentReport=()=>isLeague()?leagueReport():eventReport();
 function reportHTML(R){
@@ -829,6 +836,11 @@ function reportDlgHTML(){
   const R=currentReport();
   return `<div class="top"><h2 style="margin:0;font-size:20px"><span aria-hidden="true">📄</span> Report</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
   <div class="row sp" style="margin:0 0 10px"><button data-act="rcopy"><span aria-hidden="true">📋</span> Copy as text</button><button class="sec" data-act="rprint"><span aria-hidden="true">🖨</span> Print / save PDF</button></div>
+  ${isAdmin()?`<div class="card"><h2 style="margin-top:0"><span aria-hidden="true">📝</span> Director's note</h2>
+    <textarea id="notetxt" rows="3" maxlength="1000" placeholder="Add a note for the report, such as thanks, the next date or a reminder" style="width:100%">${esc(NOTE?NOTE.note:'')}</textarea>
+    <label class="row" style="gap:8px;margin:8px 0;align-items:center"><input type="checkbox" id="notepub" ${!NOTE||NOTE.is_public?'checked':''} style="width:auto"> <span>Public: everyone in this ${isLeague()?'league':'event'} can read it and it prints on the report</span></label>
+    <div class="note" style="margin:0 0 8px">Leave it unchecked to keep the note private. A private note is only shown to you and is left off the report. Clear the box and save to remove a note.</div>
+    <button data-act="notesave">Save note</button></div>`:''}
   <div class="card rpt">${reportHTML(R)}</div>`;
 }
 function swapDlgHTML(){
@@ -868,7 +880,8 @@ function eventDlgHTML(){
     body=`<div class="card"><h2>🏆 ${esc(x.result[0].n||'')}</h2><table><tr><th>#</th><th>${x.format==='league'?'Team':'Player'}</th>${open?'<th>W</th><th>L</th>':'<th>Pts</th>'}<th>+/−</th></tr>`+
       x.result.map((r,i)=>`<tr><td>${i+1}</td><td>${pl(r.n,r.p)}</td>${open?`<td>${r.w??''}</td><td>${r.l??''}</td>`:`<td>${r.pf??''}</td>`}<td>${r.d>0?'+':''}${r.d??''}</td></tr>`).join('')+`</table></div>`;
   }else body=`<div class="card"><h2>Players (${(x.players||[]).length})</h2><div>${names||'<span class="note">Nobody has joined yet.</span>'}</div></div>`;
-  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
+  const nt=x.note?`<div class="card"><h2><span aria-hidden="true">📝</span> Director's note</h2><div style="white-space:pre-wrap">${esc(x.note)}</div></div>`:'';
+  return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${nt}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
 }
 function playerDlgHTML(){
   const nl=a=>(Array.isArray(a)?a:(a?[{n:String(a),a:false}]:[])).map(q=>pl(q.n,q.p));
@@ -1085,7 +1098,7 @@ function leagueHTML(){
     return h;
   }
   const rows=seasonRows(),played=LN.filter(n=>n.status==='done').length;
-  h+=`<div class="card"><div class="top"><h2 style="margin:0">Season standings</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table style="margin-top:8px">${teamTable(rows)}</table><div class="note">${played} of ${LN.length} night${LN.length==1?'':'s'} finished. Ranked by total wins, then the game between teams level on wins, then point differential.</div></div>`;
+  h+=noteCard()+`<div class="card"><div class="top"><h2 style="margin:0">Season standings</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table style="margin-top:8px">${teamTable(rows)}</table><div class="note">${played} of ${LN.length} night${LN.length==1?'':'s'} finished. Ranked by total wins, then the game between teams level on wins, then point differential.</div></div>`;
   h+=`<div class="card"><h2><span aria-hidden="true">📅</span> Nights</h2>${LN.map(n=>{
     const st=n.status==='done'?`🏆 ${esc(shortN(n.result?.[0]?.n||''))}`:n.status==='playing'?`Round ${n.current_round} · live`:'Not started';
     return `<div class="tl" data-act="open" data-id="${n.id}"><div><b>Night ${n.night}</b>${n.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(n.starts_at))}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`}).join('')||'<div class="note">No nights yet.</div>'}</div>`;
@@ -1289,14 +1302,14 @@ function doneHTML(){
     const r=T.result||[];
     return `<div class="top"><h1>${ttl('Night results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} teams · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
-  <div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>`+
+  ${noteCard()}<div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>`+
     r.map((x,i)=>`<tr class="${prof&&(x.ps||[]).includes(prof.id)?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${esc(x.n)}</td><td>${x.gw}–${x.g-x.gw}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
     `</table>${swapList().length?`<div class="note" id="tienote">${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete night</button></div>':''}`;
   }
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
   return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
-  <div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
+  ${noteCard()}<div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
   r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
   `</table>${r.some(x=>x.tie)||swapList().length?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
 }
@@ -1431,7 +1444,7 @@ function doneOpenHTML(){
   const r=T.result||[],fin=games.filter(g=>gDone(g)&&!g.voided).slice().reverse();
   return `<div class="top"><h1>${ttl('Open play results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${fin.length} games</div>
-  <div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
+  ${noteCard()}<div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
   r.map((x,i)=>`<tr class="${x.p&&prof&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${pl(x.n,x.p)}</td><td>${x.g}</td><td>${x.w}</td><td>${x.l}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
   `</table></div><div class="card"><h2>Games</h2>${fin.map(gameRow).join('')}</div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete event</button></div>':''}`;
 }
@@ -1495,6 +1508,10 @@ async function loadMembers(){
   const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
   M=data||[];
 }
+async function loadNote(){
+  const {data}=await sb.from('event_notes').select('note,is_public').eq('tournament_id',T.id).maybeSingle();
+  NOTE=data&&data.note?data:null;
+}
 async function loadNights(){
   const {data}=await sb.from('tournaments').select('id,code,name,night,status,starts_at,rounds,swaps,result,players,pids,current_round,ended_early,closed_at').eq('league_id',T.id).order('night');
   LN=data||[];
@@ -1521,7 +1538,7 @@ function unsubscribe(){
 async function openT(id){
   const {data,error}=await sb.from('tournaments').select('*').eq('id',id).maybeSingle();
   if(error||!data)return false;
-  dlg='';renaming=false;T=data;await loadMembers();games=[];LN=[];if(T.kind==='open')await loadGames();if(T.kind==='league')await loadNights();drafts={};editG='';pick=defaultPick();
+  dlg='';renaming=false;T=data;NOTE=null;await loadMembers();games=[];LN=[];if(T.kind==='open')await loadGames();if(T.kind==='league')await loadNights();if(T.status==='done'||T.kind==='league')await loadNote();drafts={};editG='';pick=defaultPick();
   ls.set('pb_last',id);
   view=viewFor(T.status);
   cur=view==='play'?T.current_round-1:0;
@@ -1529,7 +1546,7 @@ async function openT(id){
   return true;
 }
 async function goHome(){
-  unsubscribe();dlg='';T=null;M=[];games=[];view='home';ls.del('pb_last');
+  unsubscribe();dlg='';T=null;NOTE=null;M=[];games=[];view='home';ls.del('pb_last');
   await loadMine();render();window.scrollTo(0,0);
 }
 const typing=()=>{const a=document.activeElement;return !!(a&&(a.tagName==='INPUT'||a.tagName==='SELECT')&&a.closest&&a.closest('#ob'))};
@@ -1543,7 +1560,7 @@ async function refresh(){
     const wasAdmin=isAdmin(),oldCR=T.current_round;
     const oldFix=new Map();(T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix)oldFix.set(ri+'-'+j,m.fix.at)}));
     const oldSwaps=(T.swaps||[]).length;
-    T=data;await loadMembers();
+    T=data;await loadMembers();if(T.status==='done'||T.kind==='league')await loadNote();
     if((T.swaps||[]).length>oldSwaps&&view==='play'){const w=T.swaps[T.swaps.length-1];toast(`🔁 ${T.players[w.in]} now plays for ${T.players[w.out]}`)}
     (T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix&&oldFix.get(ri+'-'+j)!==m.fix.at&&m.fix.by!==prof?.username&&view==='play')toast(`✎ ${m.fix.by} corrected a score: ${[...m.a].map(i=>T.players[i]).join(' & ')} ${m.sa}–${m.sb} ${[...m.b].map(i=>T.players[i]).join(' & ')} (was ${m.fix.was})`)}));if(T.kind==='open')await loadGames();
     if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(`${unit()} ${T.current_round} has started`)}
@@ -1709,7 +1726,14 @@ const actions={
   },
   rencancel(){renaming=false;render()},
   dopen(el){dlg=el.dataset.d;if(dlg==='pemail'){emailStep='enter';emailAddr=''}renderModal();if(el.dataset.focus)setTimeout(()=>$(el.dataset.focus)?.focus(),60)},
-  dclose(){dlg='';plyrBack=[];renderModal()},
+  dclose(){const was=dlg;dlg='';plyrBack=[];renderModal();if(was==='report'&&T)render()},
+  async notesave(){
+    const v=($('notetxt').value||'').trim().slice(0,1000),pub=$('notepub').checked;
+    await rpc('set_event_note',{p_tid:T.id,p_note:v,p_public:pub});
+    NOTE=v?{note:v,is_public:pub}:null;
+    toast(v?(pub?'Note saved. It is public.':'Note saved. Only you can see it.'):'Note removed');
+    renderModal();
+  },
   pastall(){showAllPast=!showAllPast;render()},
   async create(){
     const r=await rpc('create_tournament',{p_kind:newKind,p_format:newKind==='open'?'random':newKind==='league'?'league':newFormat,p_money:newKind==='open'||newKind==='league'?false:newType==='money',p_nights:newKind==='league'?newNights:null,p_rated:newType!=='fun',p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
@@ -1861,7 +1885,7 @@ const actions={
 document.addEventListener('click',async e=>{
   if(e.target.id==='modalbd'){dlg='';renderModal();return}
   const el=e.target.closest('[data-act]');if(!el||!actions[el.dataset.act])return;
-  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board','dopen','dclose','pastall','lgbegin','lgend','lgshare','rcopy','rprint'].includes(act);
+  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board','dopen','dclose','pastall','lgbegin','lgend','lgshare','rcopy','rprint','notesave'].includes(act);
   if(lock)el.disabled=true;
   try{await actions[act](el)}catch(err){console.error(err)}
   if(lock&&el.isConnected)el.disabled=false;
