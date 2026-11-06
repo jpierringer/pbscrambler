@@ -125,6 +125,21 @@ tr.me td{font-weight:700;background:var(--ac2)}
 .chip .up{display:block;font-size:14px;font-weight:700;color:var(--ac);margin-top:2px}
 .mv{font-size:12px;font-weight:700}
 #modal:empty{display:none}
+.rpt h1{font-size:20px;margin:0 0 2px}.rpt .rm{color:var(--mu);font-size:14px}.rpt h2.rh{font-size:16px;margin:16px 0 4px}
+.rpt table{width:100%;border-collapse:collapse;font-size:14px}.rpt th{text-align:left;color:var(--mu);font-weight:600;padding:3px 4px}.rpt td{padding:4px;border-top:1px solid var(--bd)}
+.rpt th:nth-child(n+3){text-align:right}
+.rpt .rl{font-size:14px;padding:2px 0}.rpt .rf{color:var(--mu);font-size:12px;margin-top:14px}
+#printarea{display:none}
+@media print{
+  html,body{background:#fff!important}
+  body>*:not(#printarea){display:none!important}
+  #printarea{display:block!important;color:#000;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:0}
+  #printarea h1{font-size:24px;margin:0 0 4px}#printarea .rm{color:#444}
+  #printarea h2.rh{font-size:17px;margin:18px 0 4px;break-after:avoid}
+  #printarea table{width:100%;border-collapse:collapse;break-inside:avoid}#printarea th{text-align:left;border-bottom:2px solid #000;padding:3px 6px}
+  #printarea th:nth-child(n+3){text-align:right}
+  #printarea td{padding:3px 6px;border-bottom:1px solid #ccc}#printarea .rf{color:#666;font-size:11px;margin-top:20px}
+}
 #modalbd{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:8;display:flex;align-items:flex-end;justify-content:center}
 .sheet{background:var(--bg);width:100%;max-width:560px;max-height:90vh;overflow-y:auto;border-radius:18px 18px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));border:1px solid var(--bd);border-bottom:0}
 @media (min-width:600px){#modalbd{align-items:center}.sheet{border-radius:18px;border-bottom:1px solid var(--bd)}}
@@ -220,7 +235,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v39 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v40 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -740,7 +755,81 @@ function renderModal(){
   const m=$('modal');if(!m)return;
   if(!dlg||!prof){m.innerHTML='';document.body.classList.remove('noscroll');return}
   document.body.classList.add('noscroll');
-  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():dlg==='qr'&&T?qrDlgHTML():dlg==='swap'&&T?swapDlgHTML():plusDlgHTML()}</div></div>`;
+  m.innerHTML=`<div id="modalbd"><div class="sheet" role="dialog" aria-modal="true">${dlg==='profile'?profileDlgHTML():dlg==='pedit'?peditDlgHTML():dlg==='pemail'?pemailDlgHTML():dlg==='ppin'?ppinDlgHTML():dlg==='event'&&evt?eventDlgHTML():dlg==='player'&&plyr?playerDlgHTML():dlg==='qr'&&T?qrDlgHTML():dlg==='swap'&&T?swapDlgHTML():dlg==='report'&&T?reportDlgHTML():plusDlgHTML()}</div></div>`;
+}
+/* ---------- reports: the results of an event or a league, to copy as text or print / save as PDF ---------- */
+const signed=d=>(d>0?'+':'')+d;
+const plainLines=html=>{const d=document.createElement('div');d.innerHTML=html;const k=[...d.children].map(e=>e.textContent.replace(/\s+/g,' ').trim()).filter(Boolean);return k.length?k:(d.textContent.trim()?[d.textContent.trim()]:[])};
+const longDate=d=>new Date(d).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+function eventReport(){
+  const open=T.kind==='open',lg=isLeagueNight(),sr=isSeries(),c=cash();
+  const r=Array.isArray(T.result)?T.result:[],fin=open?games.filter(g=>gDone(g)&&!g.voided).slice().reverse():[];
+  const meta=[`${fmtName(T)}${lg&&T.night?' · Night '+T.night:''} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`,longDate(T.starts_at||T.created_at)];
+  if(T.location)meta.push(T.location);
+  meta.push(`${r.length} ${lg?'teams':'players'}${c?` · ${$$(+T.fee*r.length)} pool · entry ${$$(+T.fee)}`:''}${open?` · ${fin.length} games`:''}`);
+  if(T.status!=='done')meta.push('In progress: results so far');
+  if(T.ended_early)meta.push('Ended early when time ran out. Games that were not played are not on record.');
+  const place=(x,i)=>`${x.tie?'T':''}${x.pl||i+1}`,nm=x=>shortN(x.n)+(x.was&&x.was.length?` (for ${x.was.map(shortN).join(', ')})`:'');
+  let head,rows;
+  if(lg){head=['#','Team','W–L','+/−'];rows=r.map((x,i)=>[place(x,i),nm(x),`${x.gw}–${x.g-x.gw}`,signed(x.d)])}
+  else if(open){head=['#','Player','G','W','L','+/−'];rows=r.map((x,i)=>[i+1,nm(x),x.g,x.w,x.l,signed(x.d)])}
+  else if(sr){head=['#','Player','Series','Games','+/−',...(c?['Paid']:[])];rows=r.map((x,i)=>[place(x,i),nm(x),x.sw??'',x.gw!=null?x.gw+'–'+(x.g-x.gw):'',signed(x.d),...(c?[x.pay?$$(x.pay):'']:[])])}
+  else{head=['#','Player','Wins','Pts','+/−',...(c?['Paid']:[])];rows=r.map((x,i)=>[place(x,i),nm(x),x.gw!=null?x.gw:'',x.pf,signed(x.d),...(c?[x.pay?$$(x.pay):'']:[])])}
+  const blocks=[{h:'Results',head,rows}];
+  const notes=[...(lg||open?[]:plainLines(tieNotes(r.map(x=>({...x,pl:x.pl||0})),c))),...(open?[]:plainLines(swapNotes()))];
+  if(notes.length)blocks.push({h:'Notes',lines:notes});
+  if(open){
+    blocks.push({h:'Games',lines:fin.map(g=>`${g.a.map(x=>shortN(x.n)).join(' & ')}  ${g.sa} – ${g.sb}  ${g.b.map(x=>shortN(x.n)).join(' & ')}${g.rated?'':' (unrated)'}`)});
+  }else if(Array.isArray(T.rounds)){
+    const nm2=i=>shortN(T.players?.[i]);
+    const lines=[];
+    T.rounds.forEach((R,ri)=>{
+      lines.push((sr&&R[0]&&R[0].s?`Series ${R[0].s} · Game ${R[0].g}`:'Round '+(ri+1))+':');
+      R.forEach((m,j)=>lines.push(`  ${R.length>1?'Court '+(j+1)+': ':''}${m.a.map(nm2).join(' & ')}  ${m.sa===''?'–':m.sa} – ${m.sb===''?'–':m.sb}  ${m.b.map(nm2).join(' & ')}${m.fix?' (corrected)':''}`));
+      const bye=byesOf(ri);if(bye.length)lines.push('  Sat out: '+bye.map(nm2).join(', '));
+    });
+    blocks.push({h:'Games',lines});
+  }
+  return {title:T.name||fmtName(T),meta,blocks};
+}
+function leagueReport(){
+  const nn=T.nights||LN.length,played=LN.filter(n=>n.status==='done').length,rows=T.status==='lobby'?[]:seasonRows();
+  const meta=[`Partner league · ${nn} night${nn==1?'':'s'} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`];
+  if(T.starts_at)meta.push('Starts '+longDate(T.starts_at));
+  if(T.location)meta.push(T.location);
+  meta.push(T.status==='lobby'?'Forming teams':`${(T.teams||[]).length} teams · ${played} of ${LN.length} nights finished${T.status==='done'?' · League finished':''}`);
+  const blocks=[];
+  if(rows.length)blocks.push({h:'Season standings',head:['#','Team','W–L','PF','PA','+/−'],rows:rows.map(x=>[`${x.tie?'T':''}${x.pl}`,x.n,`${x.gw}–${x.g-x.gw}`,x.pf,x.pa,signed(x.d)])});
+  LN.forEach(n=>{
+    const h=`Night ${n.night}${n.starts_at?' · '+new Date(n.starts_at).toLocaleDateString(undefined,{month:'short',day:'numeric'}):''}${n.ended_early?' (ended early)':''}`;
+    if(n.status==='done'&&Array.isArray(n.result)&&n.result.length)blocks.push({h,head:['#','Team','W–L','+/−'],rows:n.result.map((x,i)=>[`${x.tie?'T':''}${x.pl||i+1}`,shortN(x.n),`${x.gw}–${x.g-x.gw}`,signed(x.d)])});
+    else blocks.push({h,lines:[n.status==='playing'?`In progress (round ${n.current_round})`:'Not played yet']});
+  });
+  if((T.teams||[]).length)blocks.push({h:'Teams',lines:T.teams.map(t=>t.n)});
+  return {title:T.name||'League',meta,blocks};
+}
+const currentReport=()=>isLeague()?leagueReport():eventReport();
+function reportHTML(R){
+  return `<h1>${esc(R.title)}</h1>${R.meta.map(x=>`<div class="rm">${esc(x)}</div>`).join('')}`+R.blocks.map(b=>`<h2 class="rh">${esc(b.h)}</h2>`+
+    (b.head?`<table><tr>${b.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>${b.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`:'')+
+    (b.lines||[]).map(l=>`<div class="rl"${/^\s/.test(l)?' style="padding-left:14px"':''}>${esc(l.trim())}</div>`).join('')).join('')+
+    `<div class="rf">Pickleball Scrambler · ${new Date().toLocaleDateString()}</div>`;
+}
+/* plain text for a group chat: one line per row, no columns to line up */
+function reportText(R){
+  const out=[R.title,...R.meta];
+  R.blocks.forEach(b=>{
+    out.push('',b.h.toUpperCase());
+    if(b.head)b.rows.forEach(r=>out.push(`${r[0]}. ${r[1]}`+(r.length>2?' — '+r.slice(2).map((c,i)=>({'W–L':'','Wins':'Wins ','Pts':'Pts ','Paid':'Paid ','Series':'Series ','Games':'Games ','G':'G ','W':'W ','L':'L ','PF':'PF ','PA':'PA ','+/−':''})[b.head[i+2]]+c).filter((c,i)=>String(r[i+2])!=='').join(' · '):'')));
+    (b.lines||[]).forEach(l=>out.push(l));
+  });
+  return out.join('\n');
+}
+function reportDlgHTML(){
+  const R=currentReport();
+  return `<div class="top"><h2 style="margin:0;font-size:20px"><span aria-hidden="true">📄</span> Report</h2><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>
+  <div class="row sp" style="margin:0 0 10px"><button data-act="rcopy"><span aria-hidden="true">📋</span> Copy as text</button><button class="sec" data-act="rprint"><span aria-hidden="true">🖨</span> Print / save PDF</button></div>
+  <div class="card rpt">${reportHTML(R)}</div>`;
 }
 function swapDlgHTML(){
   const open=new Set();T.rounds.forEach(r=>r.forEach(m=>{if(!filled(m))[...m.a,...m.b].forEach(i=>open.add(i))}));
@@ -996,7 +1085,7 @@ function leagueHTML(){
     return h;
   }
   const rows=seasonRows(),played=LN.filter(n=>n.status==='done').length;
-  h+=`<div class="card"><h2>Season standings</h2><table>${teamTable(rows)}</table><div class="note">${played} of ${LN.length} night${LN.length==1?'':'s'} finished. Ranked by total wins, then the game between teams level on wins, then point differential.</div></div>`;
+  h+=`<div class="card"><div class="top"><h2 style="margin:0">Season standings</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table style="margin-top:8px">${teamTable(rows)}</table><div class="note">${played} of ${LN.length} night${LN.length==1?'':'s'} finished. Ranked by total wins, then the game between teams level on wins, then point differential.</div></div>`;
   h+=`<div class="card"><h2><span aria-hidden="true">📅</span> Nights</h2>${LN.map(n=>{
     const st=n.status==='done'?`🏆 ${esc(shortN(n.result?.[0]?.n||''))}`:n.status==='playing'?`Round ${n.current_round} · live`:'Not started';
     return `<div class="tl" data-act="open" data-id="${n.id}"><div><b>Night ${n.night}</b>${n.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(n.starts_at))}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`}).join('')||'<div class="note">No nights yet.</div>'}</div>`;
@@ -1200,14 +1289,14 @@ function doneHTML(){
     const r=T.result||[];
     return `<div class="top"><h1>${ttl('Night results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} teams · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
-  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>`+
+  <div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>`+
     r.map((x,i)=>`<tr class="${prof&&(x.ps||[]).includes(prof.id)?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${esc(x.n)}</td><td>${x.gw}–${x.g-x.gw}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
     `</table>${swapList().length?`<div class="note" id="tienote">${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete night</button></div>':''}`;
   }
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
   return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
-  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
+  <div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Player</th>${sr?'<th>Series</th><th>Games</th>':'<th>Wins</th><th>Pts</th>'}<th>+/−</th>${c?'<th>Paid</th>':''}</tr>`+
   r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
   `</table>${r.some(x=>x.tie)||swapList().length?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
 }
@@ -1342,7 +1431,7 @@ function doneOpenHTML(){
   const r=T.result||[],fin=games.filter(g=>gDone(g)&&!g.voided).slice().reverse();
   return `<div class="top"><h1>${ttl('Open play results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players · ${fin.length} games</div>
-  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
+  <div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(r[0]?.n||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div><table><tr><th>#</th><th>Player</th><th>G</th><th>W</th><th>L</th><th>+/−</th></tr>`+
   r.map((x,i)=>`<tr class="${x.p&&prof&&x.p===prof.id?'me':''}"><td>${i+1}</td><td>${pl(x.n,x.p)}</td><td>${x.g}</td><td>${x.w}</td><td>${x.l}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
   `</table></div><div class="card"><h2>Games</h2>${fin.map(gameRow).join('')}</div>${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del">Delete event</button></div>':''}`;
 }
@@ -1657,6 +1746,16 @@ const actions={
   },
   noinvite(){pendingCode='';pendingTeam=0;history.replaceState(null,'',location.pathname);render()},
   async open(el){if(!await openT(el.dataset.id))toast('Could not open that event')},
+  async rcopy(){
+    const txt=reportText(currentReport());
+    try{await navigator.clipboard.writeText(txt);toast('Report copied')}
+    catch(e){const ta=document.createElement('textarea');ta.value=txt;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();let k=false;try{k=document.execCommand('copy')}catch(e2){}ta.remove();toast(k?'Report copied':'Could not copy. Use Print / save PDF instead')}
+  },
+  rprint(){
+    let pa=$('printarea');if(!pa){pa=document.createElement('div');pa.id='printarea';document.body.appendChild(pa)}
+    pa.innerHTML=reportHTML(currentReport());
+    setTimeout(()=>window.print(),60);
+  },
   async lgstart(){await rpc('start_team',{p_tid:T.id});await refresh()},
   async lgjoin(el){await rpc('join_team',{p_tid:T.id,p_team:+el.dataset.team});await refresh()},
   async lgleave(el){await rpc('leave_team',{p_member:el.dataset.id});await refresh()},
@@ -1762,7 +1861,7 @@ const actions={
 document.addEventListener('click',async e=>{
   if(e.target.id==='modalbd'){dlg='';renderModal();return}
   const el=e.target.closest('[data-act]');if(!el||!actions[el.dataset.act])return;
-  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board','dopen','dclose','pastall','lgbegin','lgend','lgshare'].includes(act);
+  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board','dopen','dclose','pastall','lgbegin','lgend','lgshare','rcopy','rprint'].includes(act);
   if(lock)el.disabled=true;
   try{await actions[act](el)}catch(err){console.error(err)}
   if(lock&&el.isConnected)el.disabled=false;
