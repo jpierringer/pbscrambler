@@ -220,7 +220,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v37 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v39 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1463,7 +1463,8 @@ async function refresh(){
     if(view==='league'){
       await loadNights();
       const ae=document.activeElement;
-      if(!(ae&&['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)&&ae.closest&&ae.closest('#app')))render();
+      /* never redraw while the director is filling in event details (a date picker takes focus away from the name box) or a dialog such as the QR code is open (drawing the page closes it) */
+      if(!renaming&&!dlg&&!(ae&&['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)&&ae.closest&&ae.closest('#app')))render();
     }
     else if(view==='lobby'){renderMembers();updateNote()}
     else if(view==='open'){if(typing())needOpen=true;else renderOpen()}
