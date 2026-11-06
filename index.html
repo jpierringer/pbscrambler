@@ -2,6 +2,8 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pickleball Scrambler</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://sjwarllnehssyphoormc.supabase.co" crossorigin>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
@@ -134,7 +136,7 @@ input.bad{border-color:var(--neg);outline:1px solid var(--neg)}
 .err{color:var(--neg);font-size:14px;font-weight:600;margin:10px 0 0}
 .xbtn{width:auto;height:36px;padding:0 14px;border-radius:18px;font-size:14px;line-height:1;background:var(--ac2);color:var(--ac);flex:none}
 body.noscroll{overflow:hidden}
-</style></head><body><main id="app"></main><div id="modal"></div>
+</style></head><body><main id="app"><div class="card" style="text-align:center;margin-top:48px"><h2 style="margin:0 0 6px">Pickleball Scrambler</h2><div class="note" style="margin:0">Loading…</div></div></main><div id="modal"></div>
 <div id="toast" class="hide" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -151,7 +153,7 @@ const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleba
 
 let endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
-let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[];
+let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[],extraReady=false,newNights=4,leagues=[],LN=[],pendingTeam=0;
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
 const setProf=w=>({id:w.profile_id,username:w.username,start:w.start_rating??null,locked:!!w.locked,display:w.display_name||'',city:w.city||'',state:w.state||'',pub:!!w.location_public,email:w.email||''});
 const dn=x=>x.display_name||x.username;
@@ -218,12 +220,15 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v35 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v37 · Nov 5, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
+const isLeague=()=>!!T&&T.kind==='league';
+const isLeagueNight=()=>!!T&&T.kind==='scramble'&&T.format==='league';
+const shortN=n=>String(n??'').replace(/ \([^)]*\)$/,'');
 const unit=()=>isSeries()?'Game':'Round';
-const fmtName=x=>x.kind==='open'?'Open play':x.format==='series'?'4-player rotation':'Scramble';
+const fmtName=x=>x.kind==='open'?'Open play':x.format==='league'?(x.kind==='league'?'Partner league':'League night'):x.format==='series'?'4-player rotation':'Scramble';
 const cash=()=>!!T&&T.kind!=='open'&&T.money!==false;
 /* event type: 'money' (Moneyball + Rated), 'rated' (no money) or 'fun' (no money, no rating) */
 const typeOf=t=>!t?'rated':t.kind!=='open'&&t.money!==false?'money':t.rated===false?'fun':'rated';
@@ -376,7 +381,47 @@ function standingsSeries(){
   [1,2,3].forEach(n=>{const st=seriesState(n);if(st.win&&st.m0)st.m0[st.win].forEach(i=>s[seatOf(i)].sw++)});
   return seatRows(s).sort((x,y)=>y.sw-x.sw||y.gw-x.gw);
 }
+/* League: teams are ranked by wins, then head-to-head among the teams still level, then point differential. Teams level on all
+   three share the place. rows: {k, gw, g, pf, pa}; ms: the scored games as {a, b, sa, sb} with team keys. */
+function rankTeams(rows,ms){
+  rows.forEach(r=>{r.d=r.pf-r.pa;r.h=0});
+  const srt=rows.slice().sort((x,y)=>y.gw-x.gw),out=[];
+  for(let i=0;i<srt.length;){
+    let j=i+1;while(j<srt.length&&srt[j].gw===srt[i].gw)j++;
+    const grp=srt.slice(i,j);
+    if(grp.length>1){
+      const ids=new Set(grp.map(r=>r.k));
+      ms.forEach(m=>{if(ids.has(m.a)&&ids.has(m.b)&&m.sa!==m.sb)grp.find(r=>r.k===(m.sa>m.sb?m.a:m.b)).h++});
+      grp.sort((x,y)=>y.h-x.h||y.d-x.d||y.pf-x.pf);
+    }
+    out.push(...grp);i=j;
+  }
+  out.forEach((r,ix)=>{const q=out[ix-1];if(q&&q.gw===r.gw&&q.h===r.h&&q.d===r.d){r.pl=q.pl;r.tie=true;q.tie=true}else{r.pl=ix+1;r.tie=false}});
+  return out;
+}
+/* team table of one league night, from the schedule (a seat = a team member's spot; a sub shares the seat of who they replaced) */
+function standingsLeague(){
+  const nt=(T.players.length-swapList().length)/2;
+  const rows=Array.from({length:nt},(_,k)=>({k,i:2*k,pf:0,pa:0,g:0,gw:0})),ms=[];
+  T.rounds.forEach(R=>R.forEach(m=>{
+    if(!filled(m))return;
+    const a=Math.floor(seatOf(m.a[0])/2),b=Math.floor(seatOf(m.b[0])/2),sa=+m.sa,sb=+m.sb;
+    rows[a].pf+=sa;rows[a].pa+=sb;rows[a].g++;rows[b].pf+=sb;rows[b].pa+=sa;rows[b].g++;
+    if(sa>sb)rows[a].gw++;else if(sb>sa)rows[b].gw++;
+    ms.push({a,b,sa,sb});
+  }));
+  const out=rankTeams(rows,ms);
+  out.forEach(r=>{const x=occupantOf(2*r.k),y=occupantOf(2*r.k+1);r.n=[x,y].map(i=>shortN(T.players[i])).join(' & ');r.ps=[x,y].map(i=>T.pids?.[i]).filter(Boolean);r.mine=!!prof&&r.ps.includes(prof.id)});
+  return out;
+}
+const teamTable=(rows,onlyMine)=>'<tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>'+rows.map(x=>`<tr class="${x.mine?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${esc(x.n)}</td><td>${x.gw}–${x.g-x.gw}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('');
+function resultRows(){
+  if(isLeagueNight())return standingsLeague().map(x=>({n:x.n,ps:x.ps,pl:x.pl,...(x.tie?{tie:true}:{}),gw:x.gw,g:x.g,w:x.gw,l:x.g-x.gw,pf:x.pf,d:x.pf-x.pa}));
+  const p=cash()?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
+  return st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,...(x.was?.length?{was:x.was}:{}),pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
+}
 function standings(){
+  if(isLeagueNight())return standingsLeague();
   if(isSeries())return standingsSeries();
   const s=T.players.map((n,i)=>({i,n,pf:0,pa:0,g:0,gw:0}));
   T.rounds.forEach(r=>r.forEach(m=>{
@@ -515,6 +560,7 @@ function render(){
   else if(view==='home')a.innerHTML=homeHTML();
   else if(view==='lobby'){a.innerHTML=lobbyHTML();renderMembers();updateNote()}
   else if(view==='play'){a.innerHTML=playHTML();renderPlayBody()}
+  else if(view==='league')a.innerHTML=leagueHTML();
   else if(view==='board')a.innerHTML=boardHTML();
   else if(view==='open'){a.innerHTML=openHTML();renderOpen()}
   else if(view==='done'){a.innerHTML=doneHTML()}
@@ -568,7 +614,7 @@ function tlRow(t){
     const r=(t.result||[]).find(x=>x.p===prof.id);
     st=t.status==='done'?(r?`Open play · ${r.w}-${r.l}`:'Open play · done'):'Open play · live';
   }else if(t.status==='done'){
-    const i=(t.result||[]).findIndex(x=>x.p===prof.id);
+    const i=(t.result||[]).findIndex(x=>x.p===prof.id||(x.ps||[]).includes(prof.id));
     if(i<0)st=`🏆 ${esc(t.result?.[0]?.n||'')}`;
     else if(t.money===false)st=`#${t.result[i].pl||i+1} of ${t.result.length} · ${typeOf(t)==='fun'?'for fun':'rated'}`;
     else{const net=(+t.result[i].pay||0)-(+t.fee);st=`#${t.result[i].pl||i+1} of ${t.result.length} · <b class="${cls(net)}">${money(net)}</b>`}
@@ -635,7 +681,7 @@ function homeHTML(){
     h+=`<div class="card"><h2>You're invited 🎉</h2>
       <div class="code">${esc(pendingCode)}</div>
       <input id="code" type="hidden" value="${esc(pendingCode)}">
-      <button data-act="join">Join as ${esc(myName())}</button>
+      <button data-act="join">Join as ${esc(myName())}</button>${pendingTeam?'<div class="note" style="text-align:center">You will be put on your partner\'s team.</div>':''}
       <div style="text-align:center;margin-top:8px"><button class="del" data-act="noinvite">Not this one? Go back</button></div></div>`;
   }
   const comm=trendingHTML()+feedHTML()+nearbyHTML();
@@ -649,6 +695,7 @@ function homeHTML(){
     return h;
   }
   h+=todoHTML();
+  if(leagues.length)h+=`<div class="card"><h2><span aria-hidden="true">🏆</span> Leagues</h2>${leagues.map(t=>`<div class="tl" data-act="open" data-id="${t.id}"><div><b>${t.name?esc(t.name):'League'}</b> <span>· ${t.nights||''} night${t.nights==1?'':'s'}${t.admin_id===prof.id?' · director':''}</span>${t.status!=='done'&&t.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(t.starts_at))}${t.location?' · 📍 '+esc(t.location):''}</div>`:''}</div><span style="text-align:right">${t.status==='lobby'?'Forming teams':t.status==='playing'?'In season':'Finished'} ›</span></div>`).join('')}</div>`;
   if(live.length)h+=`<div class="card live"><h2><span class="pulse"></span>Live now</h2>${live.map(tlRow).join('')}</div>`;
   if(soon.length)h+=`<div class="card"><h2><span aria-hidden="true">📅</span> Upcoming events</h2>${soon.map(tlRow).join('')}</div>`;
   h+=boardCardHTML();
@@ -656,7 +703,7 @@ function homeHTML(){
     const shown=showAllPast?past:past.slice(0,8);
     h+=`<div class="card"><h2>Past events</h2>${shown.map(tlRow).join('')}${past.length>8?`<div style="text-align:center;margin-top:8px"><button class="del" data-act="pastall"><span aria-hidden="true">📜</span> ${showAllPast?'Show fewer':'Show all '+past.length}</button></div>`:''}</div>`;
   }
-  if(!mine.length&&!pendingCode)h+=`<div class="card"><h2>Welcome 👋</h2><div class="note" style="margin-top:0">Playing with friends tonight? Join their event with the 5-letter code, or set one up yourself.</div>
+  if(!mine.length&&!leagues.length&&!pendingCode)h+=`<div class="card"><h2>Welcome 👋</h2><div class="note" style="margin-top:0">Playing with friends tonight? Join their event with the 5-letter code, or set one up yourself.</div>
     <div class="row" style="margin-top:10px"><button data-act="dopen" data-d="plus" data-focus="code"><span aria-hidden="true">🔑</span> Join with a code</button><button class="sec" data-act="dopen" data-d="plus"><span aria-hidden="true">➕</span> Start an event</button></div></div>`;
   if(!pendingCode)h+=`<button class="fab" data-act="dopen" data-d="plus" aria-label="Start or join an event"><span aria-hidden="true">＋</span> Event</button><div style="height:76px"></div>`;
   return h;
@@ -729,7 +776,7 @@ function eventDlgHTML(){
   let body;
   if(!live&&(x.result||[]).length){
     const open=x.kind==='open';
-    body=`<div class="card"><h2>🏆 ${esc(x.result[0].n||'')}</h2><table><tr><th>#</th><th>Player</th>${open?'<th>W</th><th>L</th>':'<th>Pts</th>'}<th>+/−</th></tr>`+
+    body=`<div class="card"><h2>🏆 ${esc(x.result[0].n||'')}</h2><table><tr><th>#</th><th>${x.format==='league'?'Team':'Player'}</th>${open?'<th>W</th><th>L</th>':'<th>Pts</th>'}<th>+/−</th></tr>`+
       x.result.map((r,i)=>`<tr><td>${i+1}</td><td>${pl(r.n,r.p)}</td>${open?`<td>${r.w??''}</td><td>${r.l??''}</td>`:`<td>${r.pf??''}</td>`}<td>${r.d>0?'+':''}${r.d??''}</td></tr>`).join('')+`</table></div>`;
   }else body=`<div class="card"><h2>Players (${(x.players||[]).length})</h2><div>${names||'<span class="note">Nobody has joined yet.</span>'}</div></div>`;
   return `<div class="top"><div><h2 style="margin:0;font-size:20px">${x.name?esc(x.name):fmt}</h2><div class="note" style="margin:2px 0 0">${x.name?fmt+' · ':''}hosted by ${esc(x.host)} · ${state}</div></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>${live&&(x.starts_at||x.location)?infoCard({starts_at:x.starts_at,location:x.location}):''}${body}<div class="note" style="text-align:center">To join an event, ask the host for its code.</div>`;
@@ -814,7 +861,7 @@ function ppinDlgHTML(){
     <button class="sp" data-act="pinsave">Change PIN</button></div>`;
 }
 function plusDlgHTML(){
-  const op=newKind==='open',se=!op&&newFormat==='series';
+  const op=newKind==='open',lg=newKind==='league',se=!op&&!lg&&newFormat==='series';
   const joinCard=`<div class="card"><h2>Join with a code</h2>
       <div class="note" style="margin-top:0">Got a 5-letter code or a link from the organizer?</div>
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
@@ -828,16 +875,18 @@ function plusDlgHTML(){
         <label>Where</label><input id="twhere" maxlength="80" placeholder="e.g. Hudson Park, courts 3–5" value="${esc(newWhere)}">
         <label>Instructions</label><textarea id="tnotes" rows="3" maxlength="500" placeholder="Parking, what to bring, how payment works…">${esc(newNotes)}</textarea></details>
       <label>Format</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
-        <button class="${!op&&!se?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
+        <button class="${!op&&!se&&!lg?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
         <button class="${se?'on':''}" data-act="fmt" data-k="series"><span aria-hidden="true">👥</span> 4-player rotation</button>
-        <button class="${op?'on':''}" data-act="fmt" data-k="open"><span aria-hidden="true">🏓</span> Open play</button></div>
+        <button class="${op?'on':''}" data-act="fmt" data-k="open"><span aria-hidden="true">🏓</span> Open play</button>
+        <button class="${lg?'on':''}" data-act="fmt" data-k="league"><span aria-hidden="true">🏆</span> Partner league</button></div>
+      ${lg?`<label>Nights</label><select id="tnights">${Array.from({length:12},(_,i)=>i+1).map(n=>`<option value="${n}"${n===newNights?' selected':''}>${n} night${n==1?'':'s'}</option>`).join('')}</select>`:''}
       <label>Type</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
-        ${op?'':`<button class="${newType==='money'?'on':''}" data-act="typ" data-v="money"><span aria-hidden="true">💵</span> Moneyball + Rated</button>`}
+        ${op||lg?'':`<button class="${newType==='money'?'on':''}" data-act="typ" data-v="money"><span aria-hidden="true">💵</span> Moneyball + Rated</button>`}
         <button class="${newType==='rated'?'on':''}" data-act="typ" data-v="rated"><span aria-hidden="true">📊</span> Rated</button>
         <button class="${newType==='fun'?'on':''}" data-act="typ" data-v="fun"><span aria-hidden="true">🎉</span> Just for fun</button></div>
       <div class="note" style="margin-top:6px">${newType==='money'?'Entry fee and payouts. Games to 11, win by 1. Counts toward ratings.':newType==='rated'?'No money. Counts toward ratings.':'No money and no rating. Nothing here changes anyone\'s rating.'}</div>
-      <button class="sp" data-act="create">${op?'Start open play':se?'Start a 4-player rotation':'Start a new event'}</button>
-      <div class="note">${se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${(newType==='money')?': you approve players once they pay':''}, and everyone enters their own scores.`:op
+      <button class="sp" data-act="create">${op?'Start open play':lg?'Start a league':se?'Start a 4-player rotation':'Start a new event'}</button>
+      <div class="note">${lg?`Partners stay together for every night. Players join with the code and pair up (a player invites their partner, or you pair people). Each night is its own event: every team plays every other team once, games to 11. You'll be the director, and everyone enters their own scores. No money.`:se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${(newType==='money')?': you approve players once they pay':''}, and everyone enters their own scores.`:op
         ?'You pick who plays with and against whom. Players can join any time, start games when a court is free, and enter their own scores. No money in open play.'
         :`Teams are drawn for you each round, no repeat partners. You'll be the director: you ${(newType==='money')?'approve players once they pay, ':''}start each round, and everyone enters their own scores.`}</div></div>
     ${first?'':joinCard}`;
@@ -853,7 +902,8 @@ function infoCard(t){
   if(!t.starts_at&&!t.location&&!t.notes)return '';
   return `<div class="card">${t.starts_at?`<div class="t">📅 ${esc(fmtWhen(t.starts_at))}</div>`:''}${t.location?`<div class="t" style="margin-top:4px">📍 ${mapLink(t.location)}</div>`:''}${t.notes?`<div style="white-space:pre-wrap;margin-top:8px;font-size:14px">${esc(t.notes)}</div>`:''}</div>`;
 }
-function nameBar(){
+function nameBar(){return (T.league_id?`<div style="margin:0 0 8px"><button class="sec sm" data-act="open" data-id="${T.league_id}"><span aria-hidden="true">🏆</span> League</button></div>`:'')+nameBar0()}
+function nameBar0(){
   const info=infoCard(T);
   if(!isAdmin())return info;
   if(renaming)return `<div class="card"><h2>Event details</h2>
@@ -864,7 +914,99 @@ function nameBar(){
     <div class="row sp"><button class="sec" data-act="rencancel">Cancel</button><button data-act="rensave">Save</button></div></div>`;
   return info+`<div style="margin:0 0 10px"><button class="del" data-act="renstart" style="padding:2px 0">${T.name||T.starts_at||T.location||T.notes?'Edit event details':'Name it, add a time, place or instructions'}</button></div>`;
 }
+/* ----- partner league ----- */
+function genLeagueRounds(nt){   /* round robin between nt teams (circle method); team k sits at positions 2k and 2k+1 */
+  const ids=shuf([...Array(nt).keys()]);if(nt%2)ids.push(null);
+  const m=ids.length,rounds=[];
+  for(let r=0;r<m-1;r++){
+    const R=[];
+    for(let i=0;i<m/2;i++){
+      const x=ids[i],y=ids[m-1-i];if(x===null||y===null)continue;
+      const [p,q]=Math.random()<.5?[x,y]:[y,x];
+      R.push({a:[2*p,2*p+1],b:[2*q,2*q+1],sa:'',sb:''});
+    }
+    rounds.push(R);ids.splice(1,0,ids.pop());
+  }
+  return rounds.every(R=>R.length<=6)?assignCourts(rounds,nt*2):rounds;
+}
+const lgRounds=nt=>nt%2?nt:nt-1;
+function nightLobbyHTML(){
+  const adm=isAdmin(),nt=T.players.length/2,r=lgRounds(nt),meIdx=myIdx();
+  const rows=Array.from({length:nt},(_,k)=>`<div class="mrow${k?'':' first'}"><div>${esc(shortN(T.players[2*k]))} &amp; ${esc(shortN(T.players[2*k+1]))}${meIdx===2*k||meIdx===2*k+1?'<span class="badge">you</span>':''}</div></div>`).join('');
+  return `<div class="top"><h1>${ttl('League night')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
+  <div class="sub"><b>Night ${T.night||''} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}</b> · ${adm?'You are the director. Start the night when the teams have arrived.':'Waiting for the director to start the night.'}</div>
+  <div class="card"><h2>Teams tonight (${nt})</h2>${rows}
+    <div class="note">${r} round${r==1?'':'s'}: every team plays every other team once${nt%2?', and one team sits out each round':''}. At about 15 minutes a game that is roughly ${r*15} minutes. Games to 11. If someone can't make it, start the night and use "Swap a player" before round 1 so their sub is rated.</div></div>
+  ${adm?`<button data-act="lgnight" id="startbtn"><span aria-hidden="true">▶</span> Start round 1</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete night</button></div>`:''}`;
+}
+function lgTeams(){
+  const by={};M.filter(m=>m.approved&&m.team!=null).forEach(m=>(by[m.team]=by[m.team]||[]).push(m));
+  const nos=Object.keys(by).map(Number).sort((a,b)=>a-b);
+  return {full:nos.filter(k=>by[k].length===2).map(k=>({no:k,m:by[k]})),wait:nos.filter(k=>by[k].length===1).map(k=>({no:k,m:by[k]})),
+    free:M.filter(m=>m.approved&&m.team==null),pending:M.filter(m=>!m.approved)};
+}
+function seasonRows(){
+  const teams=T.teams||[],rows=teams.map((t,k)=>({k,n:t.n,ps:(t.m||[]).map(x=>x.p).filter(Boolean),pf:0,pa:0,g:0,gw:0})),ms=[];
+  LN.forEach(nt=>{
+    const sw=Array.isArray(nt.swaps)?nt.swaps:[];
+    const seat=i=>{let k=i,w;while((w=sw.find(x=>x.in===k)))k=w.out;return k};
+    (nt.rounds||[]).forEach(R=>R.forEach(m=>{
+      if(!filled(m))return;
+      const a=Math.floor(seat(m.a[0])/2),b=Math.floor(seat(m.b[0])/2),sa=+m.sa,sb=+m.sb;
+      if(!rows[a]||!rows[b])return;
+      rows[a].pf+=sa;rows[a].pa+=sb;rows[a].g++;rows[b].pf+=sb;rows[b].pa+=sa;rows[b].g++;
+      if(sa>sb)rows[a].gw++;else if(sb>sa)rows[b].gw++;
+      ms.push({a,b,sa,sb});
+    }));
+  });
+  const out=rankTeams(rows,ms);out.forEach(r=>{r.mine=!!prof&&r.ps.includes(prof.id)});return out;
+}
+function leagueHTML(){
+  const adm=isAdmin(),setup=T.status==='lobby',nn=T.nights||LN.length||0;
+  let h=`<div class="top"><h1>${ttl('League')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
+  <div class="sub"><b>Partner league · ${nn} night${nn==1?'':'s'}</b> · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''} · ${setup?'Forming teams':T.status==='playing'?'In season':'Finished'}</div>`;
+  if(setup){
+    const L=lgTeams(),me=myMember(),mine1=me&&me.approved?me:null,loose=L.free.filter(m=>m.profile_id!==T.admin_id).length+L.wait.length;
+    h+=`<div class="card"><label style="text-align:center;margin-top:0">League code</label><div class="code">${esc(T.code)}</div>
+      <button class="sec" data-act="dopen" data-d="qr"><span aria-hidden="true">📱</span> Show QR code</button>
+      <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share"><span aria-hidden="true">📤</span> Share</button></div>
+      <div class="note">Everyone joins with the code, then pairs up. Partners stay together for the whole league.</div></div>`;
+    if(mine1){
+      let box;
+      if(mine1.team==null)box=`<div>You are not on a team yet.</div><div class="row sp"><button data-act="lgstart"><span aria-hidden="true">🤝</span> Start my team</button></div><div class="note">Start a team and send your partner the link, or tap "Join" next to a partner who is waiting below${adm?'':', or ask the director to pair you'}.</div>`;
+      else{
+        const mates=M.filter(m=>m.approved&&m.team===mine1.team&&m.id!==mine1.id);
+        box=mates.length?`<div>You are teamed up with <b>${esc(shortN(mates[0].name))}</b>.</div><div class="row sp"><button class="sec sm" data-act="lgleave" data-id="${mine1.id}"><span aria-hidden="true">↩</span> Leave this team</button></div>`
+          :`<div>Waiting for your partner.</div><div class="row sp"><button data-act="lgshare"><span aria-hidden="true">📤</span> Invite my partner</button><button class="sec" data-act="lgleave" data-id="${mine1.id}">Cancel</button></div><div class="note">Your partner opens the link and lands on your team. Or they join with the code and tap "Join" next to your name.</div>`;
+      }
+      h+=`<div class="card"><h2>Your team</h2>${box}</div>`;
+    }
+    const mrow=(m,first,extra='')=>`<div class="mrow${first?' first':''}"><div>${esc(shortN(m.name))}${m.profile_id&&m.profile_id===T.admin_id?'<span class="badge">director</span>':''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${extra}</div></div>`;
+    if(L.full.length)h+=`<div class="card"><h2>Teams (${L.full.length})</h2>${L.full.map((t,i)=>`<div class="mrow${i?'':' first'}"><div>${t.m.map(m=>esc(shortN(m.name))).join(' &amp; ')}${t.m.some(m=>m.profile_id&&m.profile_id===prof.id)?'<span class="badge">you</span>':''}</div><div class="acts">${adm?`<button class="del" data-act="lgsplit" data-ids="${t.m.map(m=>m.id).join(',')}">split</button>`:''}</div></div>`).join('')}</div>`;
+    const waitMembers=L.wait.map(t=>t.m[0]);
+    const opts=(self)=>[...L.free,...waitMembers].filter(m=>m.id!==self).map(m=>`<option value="${m.id}">${esc(shortN(m.name))}</option>`).join('');
+    if(L.wait.length)h+=`<div class="card"><h2>Waiting for a partner (${L.wait.length})</h2>${L.wait.map((t,i)=>mrow(t.m[0],!i,(mine1&&mine1.team==null?`<button class="sec sm" data-act="lgjoin" data-team="${t.no}">Join</button>`:'')+(adm?`<button class="del" data-act="lgleave" data-id="${t.m[0].id}">remove from team</button>`:''))).join('')}</div>`;
+    if(L.free.length)h+=`<div class="card"><h2>Not on a team (${L.free.length})</h2>${L.free.map((m,i)=>mrow(m,!i,adm&&(L.free.length>1||waitMembers.length)?`<select data-pair="${m.id}" aria-label="Pair ${esc(shortN(m.name))} with"><option value="">Pair with…</option>${opts(m.id)}</select>`:'')).join('')}${adm?`<div class="note">As director you can pair people, or leave yourself off a team to run the league without playing.</div>`:''}</div>`;
+    if(adm)h+=`<div class="card"><div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div></div>`;
+    const can=!loose&&L.full.length>=2;
+    if(adm)h+=`<button data-act="lgbegin" ${can?'':'disabled'}><span aria-hidden="true">▶</span> Start the league</button>
+      <div class="note" style="text-align:center">${can?`${L.full.length} teams · ${T.nights} nights · each night every team plays every other team once (${lgRounds(L.full.length)} rounds). Teams lock when you start.`:loose?`${loose} player${loose==1?'':'s'} still need${loose==1?'s':''} a partner.`:'Need at least 2 full teams.'}</div>
+      <div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete league</button></div>`;
+    else h+=`<div class="note" style="text-align:center">The director starts the league once everyone has a partner.</div>`;
+    return h;
+  }
+  const rows=seasonRows(),played=LN.filter(n=>n.status==='done').length;
+  h+=`<div class="card"><h2>Season standings</h2><table>${teamTable(rows)}</table><div class="note">${played} of ${LN.length} night${LN.length==1?'':'s'} finished. Ranked by total wins, then the game between teams level on wins, then point differential.</div></div>`;
+  h+=`<div class="card"><h2><span aria-hidden="true">📅</span> Nights</h2>${LN.map(n=>{
+    const st=n.status==='done'?`🏆 ${esc(shortN(n.result?.[0]?.n||''))}`:n.status==='playing'?`Round ${n.current_round} · live`:'Not started';
+    return `<div class="tl" data-act="open" data-id="${n.id}"><div><b>Night ${n.night}</b>${n.starts_at?`<div class="note" style="margin:1px 0 0">📅 ${esc(fmtWhen(n.starts_at))}</div>`:''}</div><span style="text-align:right">${st} ›</span></div>`}).join('')||'<div class="note">No nights yet.</div>'}</div>`;
+  h+=`<div class="card"><h2>Teams (${(T.teams||[]).length})</h2>${(T.teams||[]).map((t,i)=>`<div class="mrow${i?'':' first'}"><div>${esc(t.n)}${(t.m||[]).some(x=>x.p&&prof&&x.p===prof.id)?'<span class="badge">you</span>':''}</div></div>`).join('')}</div>`;
+  if(adm)h+=`<div style="text-align:center;margin-top:6px">${T.status==='playing'?`<button class="sec sm" data-act="lgend"><span aria-hidden="true">⏹</span> End the league early</button> `:''}<button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete league</button></div>`;
+  return h;
+}
+
 function lobbyHTML(){
+  if(isLeagueNight())return nightLobbyHTML();
   const adm=isAdmin();
   return `<div class="top"><h1>${ttl('Lobby')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub"><b>${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}</b> · ${adm?(cash()?'You are the director. Approve players once they have paid and arrived.':'You are the director. Players are approved automatically when they join. Revoke anyone who isn\'t playing.'):'Waiting for everyone to arrive.'}</div>
@@ -1036,15 +1178,16 @@ function renderCtl(){
   el.innerHTML=h;
 }
 function renderStand(){
-  const c=cash(),p=c?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
+  const lg=isLeagueNight(),c=cash(),p=c?payoutsFor(seatCount(),+T.fee||0):[],st=lg?standingsLeague():placed(standings(),p);
   const over=tournamentOver();
   $('sh').textContent=over?'Final standings':c?'Standings (projected payouts)':'Standings';
   const sr=isSeries();
-  $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>Wins</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${pl(x.n,T.pids?.[x.i])}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.gw}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('');
-  const tn=$('tienote');if(tn)tn.innerHTML=tieNotes(st,c)+swapNotes();
-  const nt=$('rnote');if(nt)nt.textContent=sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
+  if(lg)$('st').innerHTML=teamTable(st);
+  else $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>Wins</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${pl(x.n,T.pids?.[x.i])}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.gw}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('');
+  const tn=$('tienote');if(tn)tn.innerHTML=lg?swapNotes():tieNotes(st,c)+swapNotes();
+  const nt=$('rnote');if(nt)nt.textContent=lg?'Ranked by wins. Teams level on wins are separated by the game between them, then by point differential. Partners stay together all season.':sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
   renderBanner();renderStrip();
-  $('pool').textContent=c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${seatCount()} players = ${$$(+T.fee*seatCount())} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
+  $('pool').textContent=lg?`League night ${T.night||''} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`:c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${seatCount()} players = ${$$(+T.fee*seatCount())} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
 }
 function renderPlayBody(){
   if(cur>=T.rounds.length)cur=T.rounds.length-1;
@@ -1053,6 +1196,14 @@ function renderPlayBody(){
 }
 function doneHTML(){
   if(T.kind==='open')return doneOpenHTML();
+  if(isLeagueNight()){
+    const r=T.result||[];
+    return `<div class="top"><h1>${ttl('Night results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} teams · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
+  <div class="card"><h2>🏆 ${esc(r[0]?.n||'')}</h2><table><tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>`+
+    r.map((x,i)=>`<tr class="${prof&&(x.ps||[]).includes(prof.id)?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${esc(x.n)}</td><td>${x.gw}–${x.g-x.gw}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('')+
+    `</table>${swapList().length?`<div class="note" id="tienote">${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete night</button></div>':''}`;
+  }
   const r=T.result||[],pool=+T.fee*r.length,c=cash(),sr=isSeries();
   return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
   <div class="sub">${new Date(T.created_at).toLocaleDateString()} · ${r.length} players${c?` · ${$$(pool)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out. Games that were not played are not on record.</div>':''}
@@ -1079,7 +1230,7 @@ const rankedNow=()=>board.filter(x=>x.ranked&&x.active);
 const mvHTML=x=>{const v=+x.move;return v>=0.03?`<span class="mv pos">▲ ${v.toFixed(2)}</span>`:v<=-0.03?`<span class="mv neg">▼ ${Math.abs(v).toFixed(2)}</span>`:''};
 function boardCardHTML(){
   const head=`<div class="top"><h2 style="margin:0">Leaderboard</h2><button class="sec sm" data-act="board"><span aria-hidden="true">🏆</span> Full leaderboard ›</button></div>`;
-  if(!board.length)return `<div class="card">${head}<div class="note">No ratings yet. They start after the first finished rated event.</div></div>`;
+  if(!board.length)return `<div class="card">${head}<div class="note">${extraReady?'No ratings yet. They start after the first finished rated event.':'Loading…'}</div></div>`;
   const rk=rankedNow(),ranked=rk.length>0,list=ranked?rk:board.filter(x=>x.active),top=list.slice(0,5),me=board.find(isMe);
   const row=(x,pos)=>`<tr class="tap ${isMe(x)?'me':''}" data-act="player" data-u="${esc(x.pid||x.username)}"><td>${pos}</td><td>${esc(dn(x))}</td><td><b>${(+x.rating).toFixed(2)}</b></td><td>${mvHTML(x)}</td></tr>`;
   let t=top.map((x,i)=>row(x,ranked?i+1:'')).join('');
@@ -1199,12 +1350,13 @@ function doneOpenHTML(){
 /* ---------- data ---------- */
 /* Events that are not finished come with their schedule, so the dashboard can say what each player has to do next. */
 async function loadActive(){
-  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format';
+  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format,league_id,night,nights';
   const [a,d]=await Promise.all([
     sb.from('tournaments').select(cols+',rounds,pids,players').neq('status','done').order('created_at',{ascending:false}),
     sb.from('tournaments').select(cols).eq('status','done').order('created_at',{ascending:false}).limit(100)]);
-  mine=[...(a.data||[]),...(d.data||[])].sort((x,y)=>new Date(y.created_at)-new Date(x.created_at));
-  const ids=(a.data||[]).map(t=>t.id);actMem={};openG=[];
+  const every=[...(a.data||[]),...(d.data||[])].sort((x,y)=>new Date(y.created_at)-new Date(x.created_at));
+  leagues=every.filter(t=>t.kind==='league');mine=every.filter(t=>t.kind!=='league');   /* a league is a hub for its nights; the nights are the events */
+  const ids=(a.data||[]).filter(t=>t.kind!=='league').map(t=>t.id);actMem={};openG=[];
   if(ids.length){
     const [m,g]=await Promise.all([sb.from('members').select('tournament_id,profile_id,approved').in('tournament_id',ids),
       sb.from('games').select('id,tournament_id,a,b,sa,sb,voided').in('tournament_id',ids).is('sa',null)]);
@@ -1217,27 +1369,52 @@ let homeBusy=false;
 async function homeTick(){
   if(!prof||view!=='home'||dlg||document.hidden||homeBusy)return;
   homeBusy=true;
-  try{const before=JSON.stringify([mine,actMem,openG]);await loadActive();if(view==='home'&&!dlg&&JSON.stringify([mine,actMem,openG])!==before)render()}catch(e){}
+  try{const before=JSON.stringify([mine,leagues,actMem,openG]);await loadActive();if(view==='home'&&!dlg&&JSON.stringify([mine,leagues,actMem,openG])!==before)render()}catch(e){}
   finally{homeBusy=false}
 }
 setInterval(homeTick,8000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)homeTick()});
-async function loadMine(){
+/* The leaderboard, club feed and nearby players do not depend on each other, so they load together.
+   whoami is only re-fetched when something may have changed the profile (not on the first load, which just fetched it). */
+async function loadExtra(refreshProf){
+  if(refreshProf){const w=await sb.rpc('whoami');if(w.data&&prof)Object.assign(prof,setProf(w.data))}   /* first: whether location is public decides if nearby players load */
+  const [b,f,n]=await Promise.all([sb.rpc('leaderboard'),sb.rpc('activity'),prof&&prof.pub?sb.rpc('nearby_players'):null]);
+  board=Array.isArray(b.data)?b.data:[];feed=Array.isArray(f.data)?f.data:[];
+  nearby=n&&Array.isArray(n.data)?n.data:[];
+  extraReady=true;
+}
+async function loadMine(skipWho){
   await loadActive();
-  const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[];
-  const f=await sb.rpc('activity');feed=Array.isArray(f.data)?f.data:[];
-  const w=await sb.rpc('whoami');if(w.data&&prof)Object.assign(prof,setProf(w.data));
-  if(prof&&prof.pub){const n=await sb.rpc('nearby_players');nearby=Array.isArray(n.data)?n.data:[]}else nearby=[];
+  await loadExtra(!skipWho);
+  saveHome();
+}
+/* The last dashboard is kept on this phone so the next launch can draw it straight away, then refresh it. */
+const HOME_KEY='pb_home1';
+function saveHome(){
+  if(!prof)return;
+  try{ls.set(HOME_KEY,JSON.stringify({prof,mine,leagues,actMem,openG,board,feed,nearby}))}catch(e){}
+}
+function paintCachedHome(){
+  try{
+    const c=JSON.parse(ls.get(HOME_KEY)||'null');
+    if(!c||!c.prof||!c.prof.id||!Array.isArray(c.mine))return false;
+    prof=c.prof;mine=c.mine;leagues=c.leagues||[];actMem=c.actMem||{};openG=c.openG||[];board=c.board||[];feed=c.feed||[];nearby=c.nearby||[];
+    extraReady=true;view='home';render();return true;
+  }catch(e){return false}
 }
 async function loadMembers(){
   const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
   M=data||[];
 }
+async function loadNights(){
+  const {data}=await sb.from('tournaments').select('id,code,name,night,status,starts_at,rounds,swaps,result,players,pids,current_round,ended_early,closed_at').eq('league_id',T.id).order('night');
+  LN=data||[];
+}
 async function loadGames(){
   const {data}=await sb.from('games').select('*').eq('tournament_id',T.id).order('created_at');
   games=data||[];
 }
-function viewFor(s){return s==='done'?'done':T.kind==='open'?'open':s==='lobby'?'lobby':'play'}
+function viewFor(s){if(T.kind==='league')return 'league';return s==='done'?'done':T.kind==='open'?'open':s==='lobby'?'lobby':'play'}
 function subscribe(){
   unsubscribe();
   let tm=null;const sched=()=>{clearTimeout(tm);tm=setTimeout(refresh,300)};
@@ -1255,7 +1432,7 @@ function unsubscribe(){
 async function openT(id){
   const {data,error}=await sb.from('tournaments').select('*').eq('id',id).maybeSingle();
   if(error||!data)return false;
-  dlg='';renaming=false;T=data;await loadMembers();games=[];if(T.kind==='open')await loadGames();drafts={};editG='';pick=defaultPick();
+  dlg='';renaming=false;T=data;await loadMembers();games=[];LN=[];if(T.kind==='open')await loadGames();if(T.kind==='league')await loadNights();drafts={};editG='';pick=defaultPick();
   ls.set('pb_last',id);
   view=viewFor(T.status);
   cur=view==='play'?T.current_round-1:0;
@@ -1283,7 +1460,12 @@ async function refresh(){
     if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(`${unit()} ${T.current_round} has started`)}
     const v=viewFor(T.status);
     if(v!==view||wasAdmin!==isAdmin()){view=v;if(v==='play')cur=Math.min(cur,T.current_round-1);render();return}
-    if(view==='lobby'){renderMembers();updateNote()}
+    if(view==='league'){
+      await loadNights();
+      const ae=document.activeElement;
+      if(!(ae&&['INPUT','SELECT','TEXTAREA'].includes(ae.tagName)&&ae.closest&&ae.closest('#app')))render();
+    }
+    else if(view==='lobby'){renderMembers();updateNote()}
     else if(view==='open'){if(typing())needOpen=true;else renderOpen()}
     else if(view==='play'){
       if(cur>=T.rounds.length)cur=T.rounds.length-1;
@@ -1410,9 +1592,9 @@ const actions={
   },
   async signout(){
     try{await rpc('sign_out')}catch(e){return}
-    unsubscribe();prof=null;T=null;M=[];mine=[];ls.del('pb_last');authMode='in';view='auth';render();
+    unsubscribe();prof=null;T=null;M=[];mine=[];ls.del('pb_last');ls.del(HOME_KEY);authMode='in';view='auth';render();
   },
-  fmt(el){const k=el.dataset.k;newKind=k==='open'?'open':'scramble';newFormat=k==='series'?'series':'random';if(k==='open'&&newType==='money')newType='rated';renderModal()},
+  fmt(el){const k=el.dataset.k;newKind=k==='open'?'open':k==='league'?'league':'scramble';newFormat=k==='series'?'series':'random';if((k==='open'||k==='league')&&newType==='money')newType='rated';renderModal()},
   typ(el){newType=el.dataset.v;renderModal()},
   async player(el){
     const u=el.dataset.u;if(!u)return;
@@ -1440,7 +1622,7 @@ const actions={
   dclose(){dlg='';plyrBack=[];renderModal()},
   pastall(){showAllPast=!showAllPast;render()},
   async create(){
-    const r=await rpc('create_tournament',{p_kind:newKind,p_format:newKind==='open'?'random':newFormat,p_money:newKind==='open'?false:newType==='money',p_rated:newType!=='fun',p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
+    const r=await rpc('create_tournament',{p_kind:newKind,p_format:newKind==='open'?'random':newKind==='league'?'league':newFormat,p_money:newKind==='open'||newKind==='league'?false:newType==='money',p_nights:newKind==='league'?newNights:null,p_rated:newType!=='fun',p_name:newName.trim()||null,p_starts:fromLocalInput(newWhen),p_location:newWhere.trim()||null,p_notes:newNotes.trim()||null});
     newName=newWhen=newWhere=newNotes='';
     await openT(r.id);
   },
@@ -1468,11 +1650,28 @@ const actions={
     const c=cleanCode($('code')?.value||pendingCode);
     if(c.length<5){toast('Enter the 5-character code');return}
     const id=await rpc('join_tournament',{p_code:c});
+    if(pendingTeam){try{await rpc('join_team',{p_tid:id,p_team:pendingTeam},true)}catch(e){}pendingTeam=0}
     pendingCode='';history.replaceState(null,'',location.pathname);
     await openT(id);
   },
-  noinvite(){pendingCode='';history.replaceState(null,'',location.pathname);render()},
+  noinvite(){pendingCode='';pendingTeam=0;history.replaceState(null,'',location.pathname);render()},
   async open(el){if(!await openT(el.dataset.id))toast('Could not open that event')},
+  async lgstart(){await rpc('start_team',{p_tid:T.id});await refresh()},
+  async lgjoin(el){await rpc('join_team',{p_tid:T.id,p_team:+el.dataset.team});await refresh()},
+  async lgleave(el){await rpc('leave_team',{p_member:el.dataset.id});await refresh()},
+  async lgsplit(el){for(const id of el.dataset.ids.split(','))await rpc('leave_team',{p_member:id});await refresh()},
+  async lgshare(){
+    const me=myMember(),u=link()+(me&&me.team!=null?'&team='+me.team:'');
+    if(navigator.share){try{await navigator.share({title:T.name||'Partner league',text:'Be my partner'+(T.name?' in '+T.name:''),url:u});return}catch(e){if(e&&e.name==='AbortError')return}}
+    try{await navigator.clipboard.writeText(u);toast('Link copied')}catch(e){toast(u)}
+  },
+  lgbegin(el){twoTap(el,'Tap again to start the league',async()=>{await rpc('start_league',{p_tid:T.id});await refresh();toast('League started. Open a night to begin.')})},
+  lgend(el){twoTap(el,'Tap again to end the league',async()=>{await rpc('end_league',{p_tid:T.id});await refresh()})},
+  async lgnight(){
+    const nt=T.players.length/2;
+    await rpc('start_league_night',{p_tid:T.id,p_rounds:genLeagueRounds(nt)});
+    await refresh();
+  },
   home(){return goHome()},
   async setstart(){
     const raw=($('dupr2').value||'').trim();let v=null;
@@ -1536,8 +1735,7 @@ const actions={
   endno(){endAsk=false;renderCtl()},
   async endok(){
     endAsk=false;
-    const p=cash()?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
-    const result=st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,...(x.was?.length?{was:x.was}:{}),pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
+    const result=resultRows();
     await rpc('end_tournament_early',{p_tid:T.id,p_result:result});
     await refresh();toast('Event closed. Every scored game is on record.');
   },
@@ -1552,8 +1750,7 @@ const actions={
   finishno(){finAsk=false;renderCtl()},
   async finishok(){
     finAsk=false;
-    const p=cash()?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
-    const result=st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,...(x.was?.length?{was:x.was}:{}),pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
+    const result=resultRows();
     await rpc('finish_tournament',{p_tid:T.id,p_rounds:T.rounds,p_result:result});
     await refresh();
   },
@@ -1564,7 +1761,7 @@ const actions={
 document.addEventListener('click',async e=>{
   if(e.target.id==='modalbd'){dlg='';renderModal();return}
   const el=e.target.closest('[data-act]');if(!el||!actions[el.dataset.act])return;
-  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board','dopen','dclose','pastall'].includes(act);
+  const act=el.dataset.act,lock=el.tagName==='BUTTON'&&!['del','tab','share','mode','fmt','mon','gend','gedit','board','dopen','dclose','pastall','lgbegin','lgend','lgshare'].includes(act);
   if(lock)el.disabled=true;
   try{await actions[act](el)}catch(err){console.error(err)}
   if(lock&&el.isConnected)el.disabled=false;
@@ -1589,6 +1786,8 @@ document.addEventListener('focusout',()=>{
 });
 document.addEventListener('change',async e=>{
   if(e.target.id==='twhen'){newWhen=e.target.value;return}
+  if(e.target.id==='tnights'){newNights=+e.target.value||4;return}
+  if(e.target.dataset&&e.target.dataset.pair){const v=e.target.value;if(!v)return;try{await rpc('assign_team',{p_tid:T.id,p_a:e.target.dataset.pair,p_b:v})}catch(err){}await refresh();return}
   if(e.target.dataset&&e.target.dataset.slot){pick[e.target.dataset.slot]=e.target.value;return}
   if(e.target.id==='rsel'){chosenR=+e.target.value;updateNote();return}
   if(e.target.id==='fee'&&isAdmin()){
@@ -1623,6 +1822,8 @@ function fatal(msg){$('app').innerHTML=TITLE+`<div class="card"><h2>Setup needed
   }
   if(!window.supabase){fatal('Could not load the Supabase library. Check your connection and reload.');return}
   sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{db:{schema:'scrambler'},auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}});
+  const urlCode=cleanCode(new URLSearchParams(location.search).get('t'));
+  if(!urlCode&&!ls.get('pb_last'))paintCachedHome();   /* returning player: show the last dashboard now */
   let {data:{session}}=await sb.auth.getSession();
   if(!session){
     const r=await sb.auth.signInAnonymously();
@@ -1630,16 +1831,18 @@ function fatal(msg){$('app').innerHTML=TITLE+`<div class="card"><h2>Setup needed
     session=r.data.session;
   }
   pendingCode=cleanCode(new URLSearchParams(location.search).get('t'));
+  pendingTeam=pendingCode?(+new URLSearchParams(location.search).get('team')||0):0;   /* a partner's invite link: ?t=CODE&team=N */
   if(pendingCode&&!ls.get('pb_user'))authMode='new';   /* someone following an invite on a fresh phone is almost always new */
   let w=null;
   try{w=await rpc('whoami')}catch(e){fatal('Could not reach the scrambler schema. Did you run <code>scrambler-schema.sql</code> and expose the <code>scrambler</code> schema?');return}
-  if(!w){view='auth';render();return}
+  if(!w){prof=null;mine=[];ls.del(HOME_KEY);view='auth';render();return}
   prof=setProf(w);
   const last=ls.get('pb_last');
   if(last&&!pendingCode){
     if(await openT(last)&&T.status!=='done')return;
     if(T){unsubscribe();T=null}
   }
-  await loadMine();view='home';render();
+  await loadActive();view='home';render();saveHome();   /* the player's own events first ... */
+  loadExtra(false).then(()=>{if(view==='home'&&!dlg)render();saveHome()}).catch(()=>{extraReady=true});   /* ... then the leaderboard and feed fill in */
 })();
 </script></body></html>
