@@ -166,11 +166,11 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let NOTE=null,endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let GN={},NOTE=null,endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[],extraReady=false,newNights=4,leagues=[],LN=[],pendingTeam=0;
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
-const setProf=w=>({id:w.profile_id,username:w.username,start:w.start_rating??null,locked:!!w.locked,display:w.display_name||'',city:w.city||'',state:w.state||'',pub:!!w.location_public,email:w.email||''});
+const setProf=w=>({id:w.profile_id,username:w.username,start:w.start_rating??null,locked:!!w.locked,display:w.display_name||'',gender:w.gender||'',gvis:w.gender_vis||'dir',city:w.city||'',state:w.state||'',pub:!!w.location_public,email:w.email||''});
 const dn=x=>x.display_name||x.username;
 const myName=()=>prof.display||prof.username;
 /* a second, throwaway auth client: it only proves that the person can read an email, then hands a one-time ticket back */
@@ -235,7 +235,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v42 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v45 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -607,6 +607,10 @@ function authHTML(){
     <button class="${nw?'':'on'}" data-act="mode" data-m="in"><span aria-hidden="true">🔑</span> Sign in</button>
     <button class="${nw?'on':''}" data-act="mode" data-m="new"><span aria-hidden="true">✨</span> Create account</button></div>
     <label>Username</label><input id="un" maxlength="20" autocapitalize="none" autocomplete="username" value="${u}" placeholder="Pick a name others will recognize">
+    ${nw?`<label>Full name <span style="font-weight:400">(optional)</span></label><input id="fn" maxlength="24" autocomplete="name" placeholder="e.g. Jane Smith">
+    <div class="note" style="margin-top:4px">Shown next to your username in events so the director and other players know who you are. Your username stays your login.</div>
+    <label>Gender <span style="font-weight:400">(optional)</span></label><select id="gn">${genderOpts('')}</select>
+    <div class="note" style="margin-top:4px">Event directors can see it, so they can run men's, women's and mixed divisions. Change who can see it any time in your profile.</div>`:''}
     <label>PIN (4–6 digits)</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="${nw?'new-password':'current-password'}" placeholder="••••">
     ${nw?`<label>Confirm PIN</label><input id="pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••">
     <details style="margin-top:12px"><summary class="note" style="cursor:pointer;margin:0">Know your DUPR rating? Add it (optional)</summary>
@@ -622,7 +626,14 @@ function authHTML(){
 
 const pl=(n,p)=>p&&n?`<span class="plink" data-act="player" data-u="${esc(p)}">${esc(n)}</span>`:esc(n);
 const avatarInit=()=>esc((myName()||'?').trim().charAt(0).toUpperCase());
+const GENDERS=[['','Prefer not to say'],['F','Woman'],['M','Man'],['X','Non-binary']];
+const genderOpts=cur=>GENDERS.map(([v,t])=>`<option value="${v}"${v===cur?' selected':''}>${t}</option>`).join('');
+const GVIS=[['dir','Event directors'],['all','Everyone'],['me','Only me']];
+const gvisOpts=cur=>GVIS.map(([v,t])=>`<option value="${v}"${v===cur?' selected':''}>${t}</option>`).join('');
+const genderLabel=g=>(GENDERS.find(x=>x[0]===g)||['',''])[1];
 const canSetStart=()=>!!prof&&!prof.locked;
+/* nag bar on the home screen until the player has a full name; "Later" hides it for 3 days */
+const needsName=()=>{if(!prof||prof.display)return false;const t=+(ls.get('pb_nn_'+prof.id)||0);return !(t&&Date.now()-t<3*864e5)};
 function tlRow(t){
   let st;
   if(t.kind==='open'){
@@ -692,6 +703,11 @@ function homeHTML(){
   const soon=mine.filter(t=>t.status==='lobby').sort((a,b)=>(a.starts_at?0:1)-(b.starts_at?0:1)||(a.starts_at&&b.starts_at?new Date(a.starts_at)-new Date(b.starts_at):new Date(b.created_at)-new Date(a.created_at)));
   let h=`<div class="hdr"><h1>${LOGO}Pickleball Scrambler</h1>
     <button class="pbtn" data-act="dopen" data-d="profile" aria-label="Your profile"><span class="avatar">${avatarInit()}${canSetStart()&&prof.start==null?'<span class="dot" title="You can set your starting rating"></span>':''}</span><span>Profile</span></button></div>`;
+  if(needsName()){
+    h+=`<div class="card" style="border-color:var(--ac)"><h2 style="margin:0 0 4px"><span aria-hidden="true">👋</span> Add your full name</h2>
+      <div class="note" style="margin-top:0">Right now other players only see <b>${esc(prof.username)}</b>. A full name helps the director and your partners know who you are. Your username stays your login.</div>
+      <div class="row sp" style="margin-top:8px"><button data-act="dopen" data-d="pedit" data-focus="pdn">Add my name</button><button class="sec" data-act="namelater">Later</button></div></div>`;
+  }
   if(pendingCode){
     h+=`<div class="card"><h2>You're invited 🎉</h2>
       <div class="code">${esc(pendingCode)}</div>
@@ -887,7 +903,7 @@ function playerDlgHTML(){
   const nl=a=>(Array.isArray(a)?a:(a?[{n:String(a),a:false}]:[])).map(q=>pl(q.n,q.p));
   const x=plyr,rows=x.rows||[],info=x.info||{},me=info.id===prof.id,name=dn(info);
   const b=board.find(r=>r.pid===info.id),rk=rankedNow(),pos=b&&b.ranked&&b.active?rk.indexOf(b)+1:0;
-  const where=info.city?`📍 ${esc(info.city)}, ${esc(info.state)}`:'';
+  const where=[info.city?`📍 ${esc(info.city)}, ${esc(info.state)}`:'',info.gender?esc(genderLabel(info.gender)):''].filter(Boolean).join(' · ');
   const w=rows.filter(r=>r.won).length,l=rows.length-w;
   const tile=(v,t)=>`<div class="stat"><b>${v}</b><span>${t}</span></div>`;
   const dayKey=d=>new Date(d).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',year:new Date(d).getFullYear()!==new Date().getFullYear()?'numeric':undefined});
@@ -934,8 +950,11 @@ function accountCardHTML(){
 const dlgHead=t=>`<div class="top"><div><button class="del" data-act="dopen" data-d="profile" style="padding:2px 0">‹ 👤 Profile</button><h2 style="margin:0;font-size:20px">${t}</h2></div><button class="xbtn" data-act="dclose" aria-label="Close"><span aria-hidden="true">✕</span> Close</button></div>`;
 function peditDlgHTML(){
   return dlgHead('Edit profile')+`<div class="card">
-    <label style="margin-top:0">Display name <span style="font-weight:400">(optional)</span></label><input id="pdn" maxlength="24" placeholder="${esc(prof.username)}" value="${esc(prof.display)}" autocomplete="nickname">
+    <label style="margin-top:0">Full name <span style="font-weight:400">(optional)</span></label><input id="pdn" maxlength="24" placeholder="${esc(prof.username)}" value="${esc(prof.display)}" autocomplete="nickname">
     <div class="note" style="margin-top:4px">Shown in events next to your username, like <b>Bob P (bp7497)</b>, so the director and players know who is who. It doesn't have to be unique. Your username still signs you in.</div>
+    <label>Gender <span style="font-weight:400">(optional)</span></label><select id="pgn">${genderOpts(prof.gender)}</select>
+    <label>Who can see it</label><select id="pgv">${gvisOpts(prof.gvis)}</select>
+    <div class="note" style="margin-top:4px"><b>Event directors</b> can see it for events you are in, to build mixed teams and divisions. <b>Everyone</b> shows it on your player profile, handy for finding a mixed partner. <b>Only me</b> keeps it private.</div>
     <label>City <span style="font-weight:400">(optional)</span></label><input id="pcity" maxlength="40" placeholder="e.g. Austin" value="${esc(prof.city)}" autocomplete="address-level2">
     <label>State</label><select id="pstate" autocomplete="address-level1"><option value="">Choose a state</option>${STATES.map(st=>`<option${st===prof.state?' selected':''}>${st}</option>`).join('')}</select>
     <label style="display:flex;gap:10px;align-items:flex-start;color:var(--tx);margin-top:14px"><input id="ppub" type="checkbox" style="width:auto;margin-top:3px"${prof.pub?' checked':''}><span>Let players in my state find me<br><span class="note" style="margin:0">Others who share their location can see your name, city and rating. Nobody sees it unless you turn this on, and you can only see nearby players when yours is on too.</span></span></label>
@@ -1125,6 +1144,13 @@ function lobbyHTML(){
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
   ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
 }
+/* the director sees how many women and men have shared their gender, to plan mixed play */
+function genderSummary(list){
+  if(!isAdmin())return '';
+  const c={F:0,M:0,X:0};list.forEach(m=>{const g=m.profile_id&&GN[m.profile_id];if(g)c[g]++});
+  const bits=[c.F?`${c.F} W`:'',c.M?`${c.M} M`:'',c.X?`${c.X} NB`:''].filter(Boolean);
+  return bits.length?` <span style="font-weight:400;color:var(--mu)">· ${bits.join(' · ')}</span>`:'';
+}
 function renderMembers(){
   const el=$('mlist');if(!el)return;
   const adm=isAdmin();
@@ -1135,11 +1161,11 @@ function renderMembers(){
       if(!m.approved)acts=`<button class="sec sm" data-act="approve" data-id="${m.id}">Approve</button><button class="del" data-act="rm" data-id="${m.id}">remove</button>`;
       else if(!isDir)acts=`<button class="del" data-act="unapprove" data-id="${m.id}">revoke</button>`;
     }
-    return `<div class="mrow${first?' first':''}"><div>${esc(m.name)}${isDir?'<span class="badge">director</span>':''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${acts}</div></div>`;
+    return `<div class="mrow${first?' first':''}"><div>${esc(m.name)}${isDir?'<span class="badge">director</span>':''}${adm&&m.profile_id&&GN[m.profile_id]?`<span class="badge" title="${esc(genderLabel(GN[m.profile_id]))}">${{F:'W',M:'M',X:'NB'}[GN[m.profile_id]]}</span>`:''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${acts}</div></div>`;
   };
   const wait=M.filter(m=>!m.approved),ok=approved();
   el.innerHTML=(wait.length?`<div class="grp">Waiting for approval (${wait.length})</div>`+wait.map((m,i)=>row(m,i===0)).join(''):'')
-    +`<div class="grp">Approved (${ok.length})</div>`+(ok.length?ok.map((m,i)=>row(m,i===0)).join(''):'<div class="note">Nobody yet.</div>');
+    +`<div class="grp">Approved (${ok.length})${genderSummary(ok)}</div>`+(ok.length?ok.map((m,i)=>row(m,i===0)).join(''):'<div class="note">Nobody yet.</div>');
 }
 const validN=n=>isSeries()?n===4:n>=4&&n<=16;
 let chosenR=0;
@@ -1507,6 +1533,8 @@ function paintCachedHome(){
 async function loadMembers(){
   const {data}=await sb.from('members').select('*').eq('tournament_id',T.id).order('created_at');
   M=data||[];
+  GN={};
+  if(isAdmin()&&T.status==='lobby'&&M.some(m=>m.profile_id)){try{GN=(await rpc('member_genders',{p_tid:T.id},true))||{}}catch(e){GN={}}}
 }
 async function loadNote(){
   const {data}=await sb.from('event_notes').select('note,is_public').eq('tournament_id',T.id).maybeSingle();
@@ -1599,6 +1627,8 @@ const actions={
     if(st&&!city)return derr('Enter a city, or clear the state.','pcity');
     let r;try{r=await rpc('update_profile',{p_display:v('pdn'),p_city:city,p_state:st,p_public:!!$('ppub')?.checked},true)}catch(e){return derr(e.friendly)}
     if(!r?.ok)return derr(r?.error||'Could not save.',{display:'pdn',city:'pcity',state:'pstate'}[r?.field]);
+    const gv=$('pgn')?.value||'',vv=$('pgv')?.value||'dir';
+    if(gv!==prof.gender||vv!==prof.gvis){try{await rpc('set_gender',{p_gender:gv,p_vis:vv},true)}catch(e){return derr(e.friendly)}}
     await loadMine();toast('Profile saved');dlg='profile';render();renderModal();
   },
   async pinsave(){
@@ -1681,7 +1711,12 @@ const actions={
         if(p!==$('pin2').value)return fail("The two PINs don't match. Re-enter them.",'pin2');
         const raw=($('dupr')?.value||'').trim();let dv=null;
         if(raw!==''){dv=+raw;if(!(dv>=2&&dv<=6))return fail('DUPR must be between 2.0 and 6.0, or leave it blank.','dupr')}
+        const fnm=($('fn')?.value||'').trim().replace(/ {2,}/g,' ');
+        if(fnm&&(fnm.length<2||fnm.length>24||/[<>]/.test(fnm)))return fail('Full name must be 2 to 24 characters, or leave it blank.','fn');
         r=await rpc('create_account',{p_username:u,p_pin:p,p_dupr:dv},true);
+        if(r&&r.ok&&fnm){try{await rpc('update_profile',{p_display:fnm,p_city:'',p_state:'',p_public:false},true)}catch(e){}}
+        const gv=$('gn')?.value||'';
+        if(r&&r.ok&&gv){try{await rpc('set_gender',{p_gender:gv},true)}catch(e){}}
       }else r=await rpc('sign_in',{p_username:u,p_pin:p},true);
     }catch(err){return fail(err.friendly||'Something went wrong. Try again.')}
     if(!r||!r.ok){
@@ -1717,6 +1752,7 @@ const actions={
     if(!r)return toast('That event has ended or is no longer listed');
     evt=r;dlg='event';renderModal();
   },
+  namelater(){ls.set('pb_nn_'+prof.id,String(Date.now()));render()},
   renstart(){renaming=true;render();$('rname')?.focus()},
   async rensave(){
     const v=id=>($(id)?.value||'').trim();
