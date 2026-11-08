@@ -231,11 +231,37 @@ const fixNote=m=>m&&m.fix?`<div class="fixnote">✎ Score corrected by <b>${esc(
 const filled=m=>m.sa!==''&&m.sb!=='';
 const myIdx=()=>(T&&T.pids&&prof)?T.pids.indexOf(prof.id):-1;
 const myMember=()=>M.find(m=>m.profile_id&&prof&&m.profile_id===prof.id);
+/* participant limits: the format sets the hard max, the director can lower it and set a minimum; extra joiners wait in line */
+const hardMax=()=>!T?16:T.format==='series'?4:T.kind==='league'?40:T.kind==='open'?30:16;
+const capN=()=>Math.min(hardMax(),T&&T.cap||hardMax());
+const minN=()=>!T||T.format==='series'?4:Math.max(4,T.min_players||4);
+const spotsUsed=()=>M.filter(m=>!m.waitlisted).length;
+const waitList=()=>M.filter(m=>m.waitlisted);
+const waitPos=m=>waitList().findIndex(x=>x.id===m.id)+1;
+function limitsSummary(){
+  const w=waitList().length,lg=T.kind==='league';
+  return `<b>${spotsUsed()}</b> of <b>${capN()}</b> spots taken${T.kind==='open'?'':` · minimum ${minN()}`}${w?` · <b>${w}</b> on the wait list`:''}${lg?' (two players per team)':''}`;
+}
+function limitsCard(){
+  if(!T||T.format==='series')return '';
+  const adm=isAdmin(),lg=T.kind==='league',open=T.kind==='open';
+  if(!adm&&!waitList().length&&capN()===hardMax()&&minN()===4)return '';
+  return `<div class="card"><h2>Players</h2><div class="note" id="limsum" style="margin-top:0">${limitsSummary()}</div>
+    ${adm?`<div class="row">${open?'':`<div><label>Minimum</label><input id="lmin" type="number" inputmode="numeric" min="4" max="${hardMax()}" step="${lg?2:1}" value="${minN()}"></div>`}<div><label>Maximum</label><input id="lmax" type="number" inputmode="numeric" min="4" max="${hardMax()}" step="${lg?2:1}" value="${capN()}"></div></div>
+    <button class="sec" data-act="savelim">Save limits</button>
+    <div class="note">${open?'':'You cannot start below the minimum. '}Once the event is full, new joiners go on a wait list and move up automatically when a spot opens or you raise the maximum.${lg?' Use even numbers, since players join in pairs.':''}</div>`:''}</div>`;
+}
+function syncLimits(){
+  const a=$('limsum');if(a)a.innerHTML=limitsSummary();
+  const mn=$('lmin'),mx=$('lmax');
+  if(mn&&document.activeElement!==mn)mn.value=minN();
+  if(mx&&document.activeElement!==mx)mx.value=capN();
+}
 const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v45 · Nov 6, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v46 · Nov 8, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1102,16 +1128,20 @@ function leagueHTML(){
       }
       h+=`<div class="card"><h2>Your team</h2>${box}</div>`;
     }
+    const wl=waitList();
     const mrow=(m,first,extra='')=>`<div class="mrow${first?' first':''}"><div>${esc(shortN(m.name))}${m.profile_id&&m.profile_id===T.admin_id?'<span class="badge">director</span>':''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${extra}</div></div>`;
+    h+=limitsCard();
+    if(me&&me.waitlisted)h+=`<div class="banner">The league is full. You're #${waitPos(me)} on the wait list and will move up automatically if a spot opens.</div>`;
     if(L.full.length)h+=`<div class="card"><h2>Teams (${L.full.length})</h2>${L.full.map((t,i)=>`<div class="mrow${i?'':' first'}"><div>${t.m.map(m=>esc(shortN(m.name))).join(' &amp; ')}${t.m.some(m=>m.profile_id&&m.profile_id===prof.id)?'<span class="badge">you</span>':''}</div><div class="acts">${adm?`<button class="del" data-act="lgsplit" data-ids="${t.m.map(m=>m.id).join(',')}">split</button>`:''}</div></div>`).join('')}</div>`;
     const waitMembers=L.wait.map(t=>t.m[0]);
     const opts=(self)=>[...L.free,...waitMembers].filter(m=>m.id!==self).map(m=>`<option value="${m.id}">${esc(shortN(m.name))}</option>`).join('');
     if(L.wait.length)h+=`<div class="card"><h2>Waiting for a partner (${L.wait.length})</h2>${L.wait.map((t,i)=>mrow(t.m[0],!i,(mine1&&mine1.team==null?`<button class="sec sm" data-act="lgjoin" data-team="${t.no}">Join</button>`:'')+(adm?`<button class="del" data-act="lgleave" data-id="${t.m[0].id}">remove from team</button>`:''))).join('')}</div>`;
     if(L.free.length)h+=`<div class="card"><h2>Not on a team (${L.free.length})</h2>${L.free.map((m,i)=>mrow(m,!i,adm&&(L.free.length>1||waitMembers.length)?`<select data-pair="${m.id}" aria-label="Pair ${esc(shortN(m.name))} with"><option value="">Pair with…</option>${opts(m.id)}</select>`:'')).join('')}${adm?`<div class="note">As director you can pair people, or leave yourself off a team to run the league without playing.</div>`:''}</div>`;
+    if(wl.length)h+=`<div class="card"><h2>Wait list (${wl.length})</h2>${wl.map((m,i)=>mrow(m,!i,`<span class="badge">#${i+1}</span>`+(adm?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''))).join('')}</div>`;
     if(adm)h+=`<div class="card"><div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div></div>`;
-    const can=!loose&&L.full.length>=2;
+    const can=!loose&&L.full.length>=2&&L.full.length*2>=minN();
     if(adm)h+=`<button data-act="lgbegin" ${can?'':'disabled'}><span aria-hidden="true">▶</span> Start the league</button>
-      <div class="note" style="text-align:center">${can?`${L.full.length} teams · ${T.nights} nights · each night every team plays every other team once (${lgRounds(L.full.length)} rounds). Teams lock when you start.`:loose?`${loose} player${loose==1?'':'s'} still need${loose==1?'s':''} a partner.`:'Need at least 2 full teams.'}</div>
+      <div class="note" style="text-align:center">${can?`${L.full.length} teams · ${T.nights} nights · each night every team plays every other team once (${lgRounds(L.full.length)} rounds). Teams lock when you start.`:loose?`${loose} player${loose==1?'':'s'} still need${loose==1?'s':''} a partner.`:L.full.length>=2?`Need at least ${Math.ceil(minN()/2)} teams (your minimum is ${minN()} players).`:'Need at least 2 full teams.'}</div>
       <div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete league</button></div>`;
     else h+=`<div class="note" style="text-align:center">The director starts the league once everyone has a partner.</div>`;
     return h;
@@ -1140,6 +1170,7 @@ function lobbyHTML(){
     ${cash()?`<div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>`:''}
     <div><label style="margin-top:0">Approved players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
     <div id="rbox"></div><div class="note" id="startnote"></div></div>
+  ${limitsCard()}
   <div class="card"><div id="mlist"></div>
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
   ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
@@ -1158,16 +1189,19 @@ function renderMembers(){
     const isDir=m.profile_id&&m.profile_id===T.admin_id;
     let acts='';
     if(adm){
-      if(!m.approved)acts=`<button class="sec sm" data-act="approve" data-id="${m.id}">Approve</button><button class="del" data-act="rm" data-id="${m.id}">remove</button>`;
+      if(m.waitlisted)acts=`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`;
+      else if(!m.approved)acts=`<button class="sec sm" data-act="approve" data-id="${m.id}">Approve</button><button class="del" data-act="rm" data-id="${m.id}">remove</button>`;
       else if(!isDir)acts=`<button class="del" data-act="unapprove" data-id="${m.id}">revoke</button>`;
     }
-    return `<div class="mrow${first?' first':''}"><div>${esc(m.name)}${isDir?'<span class="badge">director</span>':''}${adm&&m.profile_id&&GN[m.profile_id]?`<span class="badge" title="${esc(genderLabel(GN[m.profile_id]))}">${{F:'W',M:'M',X:'NB'}[GN[m.profile_id]]}</span>`:''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${acts}</div></div>`;
+    return `<div class="mrow${first?' first':''}"><div>${m.waitlisted?`<span class="badge">#${waitPos(m)}</span> `:''}${esc(m.name)}${isDir?'<span class="badge">director</span>':''}${adm&&m.profile_id&&GN[m.profile_id]?`<span class="badge" title="${esc(genderLabel(GN[m.profile_id]))}">${{F:'W',M:'M',X:'NB'}[GN[m.profile_id]]}</span>`:''}${m.profile_id&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${acts}</div></div>`;
   };
-  const wait=M.filter(m=>!m.approved),ok=approved();
+  const wait=M.filter(m=>!m.approved&&!m.waitlisted),wl=waitList(),ok=approved();
   el.innerHTML=(wait.length?`<div class="grp">Waiting for approval (${wait.length})</div>`+wait.map((m,i)=>row(m,i===0)).join(''):'')
-    +`<div class="grp">Approved (${ok.length})${genderSummary(ok)}</div>`+(ok.length?ok.map((m,i)=>row(m,i===0)).join(''):'<div class="note">Nobody yet.</div>');
+    +`<div class="grp">Approved (${ok.length})${genderSummary(ok)}</div>`+(ok.length?ok.map((m,i)=>row(m,i===0)).join(''):'<div class="note">Nobody yet.</div>')
+    +(wl.length?`<div class="grp">Wait list (${wl.length})</div>`+wl.map((m,i)=>row(m,i===0)).join(''):'');
+  syncLimits();
 }
-const validN=n=>isSeries()?n===4:n>=4&&n<=16;
+const validN=n=>isSeries()?n===4:n>=minN()&&n<=Math.min(16,capN());
 let chosenR=0;
 const roundsFor=n=>roundChoices(n).includes(chosenR)?chosenR:defaultRounds(n);
 function updateNote(){
@@ -1199,11 +1233,11 @@ function updateNote(){
       if(r>7){const alt=[n-1,n+1].filter(m=>validN(m)&&defaultRounds(m)<=7);t+=` That's a long event, because everyone has to play the same number of games.`+(alt.length?` ${alt.join(' or ')} players would be shorter.`:'')}
       if(w)t+=` ${w} still waiting will watch as spectators.`;
       el.textContent=t;
-    }else el.textContent=isSeries()?(n<4?`A series needs exactly 4 approved players (${4-n} more).`:`A 4-player rotation needs exactly 4 players. Revoke ${n-4}.`):(n<4?`Need at least 4 approved players (${4-n} more).`:'Max 16 players. Revoke '+(n-16)+'.');
+    }else el.textContent=isSeries()?(n<4?`A series needs exactly 4 approved players (${4-n} more).`:`A 4-player rotation needs exactly 4 players. Revoke ${n-4}.`):(n<minN()?`Need at least ${minN()} approved players (${minN()-n} more).`:`Max ${Math.min(16,capN())} players. Revoke ${n-Math.min(16,capN())}.`);
   }
   const b=$('startbtn');if(b)b.disabled=!ok;
   const bn=$('banner');
-  if(bn){const me=myMember();bn.textContent=me&&me.approved?(cash()?"You're approved ✓ Waiting for the director to start.":"You're in ✓ Waiting for the director to start."):(cash()?`Waiting for the director to approve you. Pay the ${$$(+T.fee)} entry fee to the director.`:'Waiting for the director to approve you.')}
+  if(bn){const me=myMember();bn.textContent=me&&me.waitlisted?`The event is full. You're #${waitPos(me)} on the wait list and will move up automatically if a spot opens.`:me&&me.approved?(cash()?"You're approved ✓ Waiting for the director to start.":"You're in ✓ Waiting for the director to start."):(cash()?`Waiting for the director to approve you. Pay the ${$$(+T.fee)} entry fee to the director.`:'Waiting for the director to approve you.')}
 }
 
 /* ----- play ----- */
@@ -1406,6 +1440,8 @@ function openHTML(){
   <div class="card"><label style="text-align:center">Invite code</label><div class="code">${esc(T.code)}</div>
     <button class="sec" data-act="dopen" data-d="qr"><span aria-hidden="true">📱</span> Show QR code</button>
     <div class="lnk"><input id="lnk" readonly value="${esc(link())}"><button data-act="share"><span aria-hidden="true">📤</span> Share</button></div></div>
+  ${myMember()&&myMember().waitlisted?`<div class="banner">This session is full. You're #${waitPos(myMember())} on the wait list and will move up automatically if a spot opens.</div>`:''}
+  ${isAdmin()?limitsCard():''}
   <div id="ob"></div>`;
 }
 function openStand(){
@@ -1478,7 +1514,7 @@ function doneOpenHTML(){
 /* ---------- data ---------- */
 /* Events that are not finished come with their schedule, so the dashboard can say what each player has to do next. */
 async function loadActive(){
-  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format,league_id,night,nights';
+  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format,league_id,night,nights,min_players,cap';
   const [a,d]=await Promise.all([
     sb.from('tournaments').select(cols+',rounds,pids,players').neq('status','done').order('created_at',{ascending:false}),
     sb.from('tournaments').select(cols).eq('status','done').order('created_at',{ascending:false}).limit(100)]);
@@ -1849,13 +1885,18 @@ const actions={
     await rpc('add_guest',{p_tid:T.id,p_name:v});
     $('gname').value='';await refresh();
   },
+  async savelim(el){
+    const mn=$('lmin'),mx=$('lmax');
+    await rpc('set_limits',{p_tid:T.id,p_min:mn&&mn.value?+mn.value:null,p_max:mx&&mx.value?+mx.value:null});
+    await refresh();syncLimits();toast('Limits saved');
+  },
   async approve(el){await rpc('set_approved',{p_member_id:el.dataset.id,p_approved:true});await refresh()},
   async unapprove(el){await rpc('set_approved',{p_member_id:el.dataset.id,p_approved:false});await refresh()},
   async rm(el){await rpc('remove_member',{p_member_id:el.dataset.id});await refresh()},
   async start(){
     await loadMembers();
     const ap=approved();
-    if(!validN(ap.length)){toast(isSeries()?'A series needs exactly 4 approved players':'Need 4 to 16 approved players');updateNote();return}
+    if(!validN(ap.length)){toast(isSeries()?'A series needs exactly 4 approved players':`Need ${minN()} to ${Math.min(16,capN())} approved players`);updateNote();return}
     toast('Building the schedule…');await new Promise(r=>setTimeout(r,60));
     const players=ap.map(m=>m.name),pids=ap.map(m=>m.profile_id),rounds=isSeries()?genSeries():genSchedule(players.length,roundsFor(players.length));
     if(!rounds){toast('Could not build a valid schedule. Try again.');return}
