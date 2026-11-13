@@ -285,7 +285,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v50 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v51 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1488,7 +1488,7 @@ function gameRow(g){
 function scoreBox(g){
   const v=s=>esc(drafts[`g-${g.id}-${s}`]??(g[s]??''));
   const ib=s=>`<input type="number" inputmode="numeric" min="0" max="999" data-g="${g.id}" data-s="${s}" value="${v(s)}" placeholder="0">`;
-  return `<div class="match${gMine(g)?' mine':''}">${g.court?`<div class="grp" style="margin:0 0 4px">Court ${g.court}</div>`:''}<div class="t">${gTeam(g.a)}</div>${ib('sa')}
+  return `<div class="match${gMine(g)?' mine':''}">${g.court?`<div class="ct">Court ${g.court}</div>`:''}<div class="t">${gTeam(g.a)}</div>${ib('sa')}
     <div class="vs">vs</div><div class="t">${gTeam(g.b)}</div>${ib('sb')}
     <div class="foot"><button data-act="gscore" data-g="${g.id}">${gDone(g)?'Save score':'Submit score'}</button>
     ${gDone(g)?`<button class="del" data-act="gedit" data-g="">cancel</button>`:`<button class="del" data-act="gcancel" data-g="${g.id}">cancel game</button>`}
