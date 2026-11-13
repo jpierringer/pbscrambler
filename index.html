@@ -260,10 +260,11 @@ function limitsSummary(){
 }
 /* a player who forgot their phone signs in on the director's device: username + PIN, then they are in the lobby with their own rating */
 function pinAdd(){
-  return `<details class="pinadd" style="margin-top:12px"><summary class="note" style="cursor:pointer;margin:0">Forgot their phone? Add a player with their username and PIN</summary>
-    <div class="row" style="margin-top:8px"><input id="pinu" placeholder="Username" autocapitalize="none" autocomplete="off" maxlength="30"><input id="pinp" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" maxlength="8" style="flex:0 0 90px"></div>
-    <button class="sec" data-act="pinadd">Add player</button>
-    <div class="note">They are added with their own account and rating. The PIN is only checked, never shown or kept on this device.</div></details>`;
+  return `<div class="pinadd" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bd)"><h2 style="margin:0 0 4px;font-size:15px">Forgot their phone?</h2>
+    <div class="note" style="margin:0 0 10px">Add a registered player with their username and PIN.</div>
+    <div class="row" style="gap:10px"><input id="pinu" placeholder="Username" autocapitalize="none" autocomplete="off" maxlength="30"><input id="pinp" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" maxlength="8" style="flex:0 0 90px"></div>
+    <button class="sec" data-act="pinadd" style="margin-top:12px">Add player</button>
+    <div class="note" style="margin-top:8px">They are added with their own account and rating. The PIN is only checked, never shown or kept on this device.</div></div>`;
 }
 function limitsCard(){
   if(!T||T.format==='series')return '';
@@ -284,7 +285,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v49 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v50 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
