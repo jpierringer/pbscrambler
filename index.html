@@ -258,6 +258,13 @@ function limitsSummary(){
   const w=waitList().length,lg=T.kind==='league';
   return `<b>${spotsUsed()}</b> of <b>${capN()}</b> spots taken${isFree(T)?'':` · minimum ${minN()}`}${w?` · <b>${w}</b> on the wait list`:''}${lg?' (two players per team)':''}`;
 }
+/* a player who forgot their phone signs in on the director's device: username + PIN, then they are in the lobby with their own rating */
+function pinAdd(){
+  return `<details class="pinadd" style="margin-top:12px"><summary class="note" style="cursor:pointer;margin:0">Forgot their phone? Add a player with their username and PIN</summary>
+    <div class="row" style="margin-top:8px"><input id="pinu" placeholder="Username" autocapitalize="none" autocomplete="off" maxlength="30"><input id="pinp" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" maxlength="8" style="flex:0 0 90px"></div>
+    <button class="sec" data-act="pinadd">Add player</button>
+    <div class="note">They are added with their own account and rating. The PIN is only checked, never shown or kept on this device.</div></details>`;
+}
 function limitsCard(){
   if(!T||T.format==='series')return '';
   const adm=isAdmin(),lg=T.kind==='league',open=isFree(T);
@@ -277,7 +284,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v48 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v49 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1157,7 +1164,7 @@ function leagueHTML(){
     if(L.wait.length)h+=`<div class="card"><h2>Waiting for a partner (${L.wait.length})</h2>${L.wait.map((t,i)=>mrow(t.m[0],!i,(mine1&&mine1.team==null?`<button class="sec sm" data-act="lgjoin" data-team="${t.no}">Join</button>`:'')+(adm?`<button class="del" data-act="lgleave" data-id="${t.m[0].id}">remove from team</button>`:''))).join('')}</div>`;
     if(L.free.length)h+=`<div class="card"><h2>Not on a team (${L.free.length})</h2>${L.free.map((m,i)=>mrow(m,!i,adm&&(L.free.length>1||waitMembers.length)?`<select data-pair="${m.id}" aria-label="Pair ${esc(shortN(m.name))} with"><option value="">Pair with…</option>${opts(m.id)}</select>`:'')).join('')}${adm?`<div class="note">As director you can pair people, or leave yourself off a team to run the league without playing.</div>`:''}</div>`;
     if(wl.length)h+=`<div class="card"><h2>Wait list (${wl.length})</h2>${wl.map((m,i)=>mrow(m,!i,`<span class="badge">#${i+1}</span>`+(adm?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''))).join('')}</div>`;
-    if(adm)h+=`<div class="card"><div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div></div>`;
+    if(adm)h+=`<div class="card"><div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}</div>`;
     const can=!loose&&L.full.length>=2&&L.full.length*2>=minN();
     if(adm)h+=`<button data-act="lgbegin" ${can?'':'disabled'}><span aria-hidden="true">▶</span> Start the league</button>
       <div class="note" style="text-align:center">${can?`${L.full.length} teams · ${T.nights} nights · each night every team plays every other team once (${lgRounds(L.full.length)} rounds). Teams lock when you start.`:loose?`${loose} player${loose==1?'':'s'} still need${loose==1?'s':''} a partner.`:L.full.length>=2?`Need at least ${Math.ceil(minN()/2)} teams (your minimum is ${minN()} players).`:'Need at least 2 full teams.'}</div>
@@ -1191,7 +1198,7 @@ function lobbyHTML(){
     <div id="rbox"></div><div class="note" id="startnote"></div></div>
   ${limitsCard()}
   <div class="card"><div id="mlist"></div>
-    ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:''}</div>
+    ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}`:''}</div>
   ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
 }
 /* the director sees how many women and men have shared their gender, to plan mixed play */
@@ -1516,7 +1523,7 @@ function renderOpen(){
   h+=`<div class="card"><h2>Players (${ok.length})</h2>`+ok.map((m,i)=>{
     const isDir=m.profile_id&&m.profile_id===T.admin_id,has=games.some(g=>[...g.a,...g.b].some(x=>x.n===m.name));
     return `<div class="mrow${i?'':' first'}"><div>${esc(m.name)}${isDir?'<span class="badge">host</span>':''}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div>${adm&&!isDir&&!has?`<button class="del" data-act="rm" data-id="${m.id}">remove</button>`:''}</div>`;
-  }).join('')+(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:'')+'</div>';
+  }).join('')+(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}`:'')+'</div>';
   if(adm)h+=`<button class="sec" data-act="gend">End event</button>
     <div class="note" style="text-align:center">${live.length?'Finish or cancel games in progress first.':'Saves the standings. Games stay on record.'}</div>
     <div style="text-align:center;margin-top:14px"><button class="del" data-act="del">Delete event</button></div>`;
@@ -1593,7 +1600,7 @@ function renderOP(){
     const isDir=m.profile_id&&m.profile_id===T.admin_id;
     return `<div class="mrow${i?'':' first'}"><div><span class="badge">#${i+1}</span> ${esc(m.name)}${isDir?'<span class="badge">host</span>':''}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}<div class="note" style="margin:0">waiting ${waited(sinceOf(m))} · ${gp(m)} game${gp(m)==1?'':'s'}</div></div>${adm?`<span style="display:flex;gap:8px;flex:none"><button class="del" data-act="opleave" data-id="${m.id}">left</button></span>`:''}</div>`;
   }).join(''):`<div class="note">${here.length?'Everyone here is on a court.':'Nobody is in the lobby yet.'}</div>`)
-  +(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>`:'')+'</div>';
+  +(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}`:'')+'</div>';
   if(gone.length)h+=`<div class="card"><h2>Left for the day (${gone.length})</h2>`+gone.map((m,i)=>`<div class="mrow${i?'':' first'}"><div>${esc(m.name)}</div>${adm?`<button class="sec sm" data-act="opback" data-id="${m.id}">back</button>`:''}</div>`).join('')+'</div>';
   /* finished games, with the host's review */
   h+=`<div class="card"><h2>Finished games (${fin.length})</h2>`+(fin.length?fin.map(g=>{
@@ -2021,6 +2028,15 @@ const actions={
     const url=link();
     if(navigator.share){try{await navigator.share({title:'Pickleball Scrambler',text:'Join my pickleball event! Code '+T.code,url});return}catch(e){if(e.name==='AbortError')return}}
     try{await navigator.clipboard.writeText(url);toast('Link copied')}catch(e){$('lnk').select();toast('Copy the link shown above')}
+  },
+  async pinadd(){
+    const u=($('pinu')?.value||'').trim(),pw=($('pinp')?.value||'').trim();
+    if(!u||!pw)return toast('Enter their username and PIN');
+    const r=await rpc('join_with_pin',{p_tid:T.id,p_username:u,p_pin:pw});
+    if(!r||!r.ok)return toast((r&&r.error)||'Could not add that player');
+    $('pinu').value='';$('pinp').value='';
+    await refresh();
+    toast(r.waitlisted?`${r.name} is on the wait list`:r.approved?`${r.name} added`:`${r.name} added. Approve them once they have paid`);
   },
   async addguest(){
     const v=($('gname').value||'').trim();if(!v)return;
