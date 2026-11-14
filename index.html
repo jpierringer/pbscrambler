@@ -285,7 +285,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v51 · Nov 12, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v52 · Nov 14, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1536,7 +1536,7 @@ const sinceOf=m=>{let t=new Date(m.created_at||0).getTime();games.forEach(g=>{if
 const waited=ms=>{const m=Math.max(0,Math.round((Date.now()-ms)/60000));return m<1?'just now':m<60?m+' min':Math.floor(m/60)+' h '+(m%60)+' min'};
 const opBusy=()=>new Set(games.filter(g=>!gDone(g)&&!g.voided).flatMap(g=>[...g.a,...g.b].map(x=>x.n)));
 const opHere=()=>M.filter(m=>m.approved&&m.present!==false&&!m.waitlisted);
-const opQueue=()=>{const b=opBusy();return opHere().filter(m=>!b.has(m.name)).sort((x,y)=>sinceOf(x)-sinceOf(y))};
+const opQueue=()=>{const b=opBusy();return opHere().filter(m=>!b.has(m.name)).sort((x,y)=>x.name.localeCompare(y.name))};   /* the lobby is just who is free, A to Z: no line, no suggested pairings */
 const courtGame=c=>games.find(g=>g.court===c&&!gDone(g)&&!g.voided);
 function opHTML(){
   const nc=T.courts||0;
@@ -1567,7 +1567,7 @@ function renderOP(){
   else if(me){
     h+=`<div class="card" style="border-color:var(--ac)">`+(myG
       ?`<div class="grp" style="margin:0">Your game${myG.court?' · court '+myG.court:''}</div>${gCan(myG)?scoreBox(myG):''}`
-      :`<div class="grp" style="margin:0">In the lobby</div><b>You're #${q.findIndex(x=>x.id===me.id)+1} in line</b> <span class="note">· waiting ${waited(sinceOf(me))}</span>`)
+      :`<div class="grp" style="margin:0">In the lobby</div><b>You're free to play</b>`)
       +`<div style="margin-top:8px"><button class="sec sm" data-act="opleave" data-id="${me.id}"${myG?' disabled':''}>I'm leaving for today</button></div></div>`;
   }
   /* courts */
@@ -1581,9 +1581,8 @@ function renderOP(){
   /* set up a game */
   if(opStart&&(adm||inLine)){
     const open=nc>0?Array.from({length:nc},(_,i)=>i+1).filter(c=>!courtGame(c)):[];
-    const sel=(slot,lbl)=>`<div><label>${lbl}</label><select data-slot="${slot}"><option value="">Choose…</option>${q.map((m,i)=>`<option value="${m.id}"${pick[slot]===m.id?' selected':''}>${i+1}. ${esc(m.name)}</option>`).join('')}</select></div>`;
-    h+=`<div class="card"><h2>Set up a game</h2><div class="note" style="margin-top:0">Players are listed in line order. Games are to 11 unless you agree otherwise; anyone in the game can enter the score.</div>
-      <button class="sec" data-act="opfill"><span aria-hidden="true">⬆️</span> Next up${adm?'':' (me + next 3)'}</button>
+    const sel=(slot,lbl)=>`<div><label>${lbl}</label><select data-slot="${slot}"><option value="">Choose…</option>${q.map((m,i)=>`<option value="${m.id}"${pick[slot]===m.id?' selected':''}>${esc(m.name)}</option>`).join('')}</select></div>`;
+    h+=`<div class="card"><h2>Set up a game</h2><div class="note" style="margin-top:0">Choose who is playing. Anyone in the game can enter the score when it is done.</div>
       <div class="row">${adm?sel('p1','Player 1'):`<div><label>Player 1</label><div class="t" style="padding:10px 0">You</div></div>`}${sel('p2',adm?'Player 2':'Your partner')}</div>
       <div class="grp" style="text-align:center;margin:8px 0 0">vs</div>
       <div class="row">${sel('o1','Opponent 1')}${sel('o2','Opponent 2')}</div>
@@ -1599,7 +1598,7 @@ function renderOP(){
   /* the lobby line */
   h+=`<div class="card"><h2>Lobby (${q.length})</h2>`+(q.length?q.map((m,i)=>{
     const isDir=m.profile_id&&m.profile_id===T.admin_id;
-    return `<div class="mrow${i?'':' first'}"><div><span class="badge">#${i+1}</span> ${esc(m.name)}${isDir?'<span class="badge">host</span>':''}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}<div class="note" style="margin:0">waiting ${waited(sinceOf(m))} · ${gp(m)} game${gp(m)==1?'':'s'}</div></div>${adm?`<span style="display:flex;gap:8px;flex:none"><button class="del" data-act="opleave" data-id="${m.id}">left</button></span>`:''}</div>`;
+    return `<div class="mrow${i?'':' first'}"><div>${esc(m.name)}${isDir?'<span class="badge">host</span>':''}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}<div class="note" style="margin:0">${gp(m)} game${gp(m)==1?'':'s'} played</div></div>${adm?`<span style="display:flex;gap:8px;flex:none"><button class="del" data-act="opleave" data-id="${m.id}">left</button></span>`:''}</div>`;
   }).join(''):`<div class="note">${here.length?'Everyone here is on a court.':'Nobody is in the lobby yet.'}</div>`)
   +(adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}`:'')+'</div>';
   if(gone.length)h+=`<div class="card"><h2>Left for the day (${gone.length})</h2>`+gone.map((m,i)=>`<div class="mrow${i?'':' first'}"><div>${esc(m.name)}</div>${adm?`<button class="sec sm" data-act="opback" data-id="${m.id}">back</button>`:''}</div>`).join('')+'</div>';
@@ -1937,12 +1936,6 @@ const actions={
   },
   opstart(el){const c=el.dataset.court;opStart=true;pick={...defaultPick(),p1:isAdmin()?pick.p1||'':myMemberId(),court:c||''};renderOP();$('ob')?.querySelector('[data-act=opgo]')?.scrollIntoView({block:'center'})},
   opstartx(){opStart=false;pick=defaultPick();renderOP()},
-  opfill(){
-    const q=opQueue(),me=myMember();let list=q.slice();
-    if(!isAdmin()&&me)list=[me,...q.filter(x=>x.id!==me.id)];
-    if(list.length<4)return toast('Need four players in the lobby');
-    pick={...pick,p1:list[0].id,p2:list[3].id,o1:list[1].id,o2:list[2].id};renderOP();
-  },
   async opgo(){
     const p=pick;
     if(!p.p1||!p.p2||!p.o1||!p.o2)return toast('Choose all four players');
