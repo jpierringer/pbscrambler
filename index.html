@@ -271,6 +271,36 @@ function pinAdd(){
     <button style="margin-top:12px" data-act="newplayer">Create account and add</button>
     <div class="note" style="margin-top:8px">The PIN is 4 to 6 digits. DUPR is optional (2.0 to 6.0). They can sign in with this username and PIN on their own phone later, and keep their rating.</div></div>`;
 }
+/* paying the entry fee: the director says where to send it (Venmo and/or Zelle); players get the amount and a link */
+const venmoLink=()=>`https://venmo.com/${encodeURIComponent(T.pay_venmo)}?txn=pay&amount=${(+T.fee||0).toFixed(2)}&note=${encodeURIComponent((T.name||'Pickleball')+' entry')}`;
+function payCard(){
+  if(!T||!cash())return '';
+  if(isAdmin()){
+    return `<div class="card"><h2>Where players pay you</h2>
+      <div class="row" style="gap:10px"><div><label style="margin-top:0">Venmo username</label><input id="payv" placeholder="@yourname" autocapitalize="none" autocomplete="off" maxlength="31" value="${esc(T.pay_venmo||'')}"></div>
+      <div><label style="margin-top:0">Zelle email or phone</label><input id="payz" placeholder="you@email.com" autocapitalize="none" autocomplete="off" maxlength="60" value="${esc(T.pay_zelle||'')}"></div></div>
+      <button class="sec" data-act="paysave" style="margin-top:12px">Save payment info</button>
+      <div class="note">Players see this once they join, with the entry fee. Only people in this event can see it. Leave a box empty to hide it. Cash still works: approve players as they pay.</div></div>`;
+  }
+  return `<div class="card" id="paybox" style="display:none"></div>`;
+}
+function renderPay(){
+  if(!T||!cash())return;
+  if(isAdmin()){
+    /* reuse the handles from your last event */
+    if(!T.pay_venmo&&!T.pay_zelle&&!T._pa){T._pa=1;let sv=null;try{sv=JSON.parse(ls.get('pb_pay')||'null')}catch(e){}
+      if(sv&&(sv.v||sv.z)){rpc('set_pay',{p_tid:T.id,p_venmo:sv.v||null,p_zelle:sv.z||null},true).then(()=>{T.pay_venmo=sv.v||null;T.pay_zelle=sv.z||null;if($('payv'))$('payv').value=sv.v||'';if($('payz'))$('payz').value=sv.z||''}).catch(()=>{})}}
+    return;
+  }
+  const el=$('paybox');if(!el)return;
+  const me=myMember(),show=me&&!me.approved&&!me.waitlisted&&+T.fee>0&&(T.pay_venmo||T.pay_zelle);
+  el.style.display=show?'':'none';
+  if(!show){el.innerHTML='';return}
+  el.innerHTML=`<h2>Pay your ${$$(+T.fee)} entry fee</h2>
+    ${T.pay_venmo?`<a href="${esc(venmoLink())}" target="_blank" rel="noopener" style="display:block;padding:12px 16px;border-radius:10px;background:var(--ac);color:#fff;font-weight:600;text-align:center;text-decoration:none;margin-top:8px"><span aria-hidden="true">💸</span> Pay ${$$(+T.fee)} with Venmo</a><div class="note" style="margin-top:4px">To @${esc(T.pay_venmo)}</div>`:''}
+    ${T.pay_zelle?`<div class="row" style="gap:10px;margin-top:10px;align-items:center"><div style="flex:1;min-width:0"><div class="t" style="word-break:break-all">${esc(T.pay_zelle)}</div><div class="note" style="margin:0">Send ${$$(+T.fee)} with Zelle from your bank app</div></div><button class="sec sm" data-act="paycopy" data-v="${esc(T.pay_zelle)}" style="flex:0 0 auto">Copy</button></div>`:''}
+    <div class="note" style="margin-top:10px">The director approves you once your payment arrives.</div>`;
+}
 function limitsCard(){
   if(!T||T.format==='series')return '';
   const adm=isAdmin(),lg=T.kind==='league',open=isFree(T);
@@ -290,7 +320,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v53 · Nov 17, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v54 · Nov 22, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1203,6 +1233,7 @@ function lobbyHTML(){
     <div><label style="margin-top:0">Approved players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
     <div id="rbox"></div><div class="note" id="startnote"></div></div>
   ${limitsCard()}
+  ${payCard()}
   <div class="card"><div id="mlist"></div>
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}`:''}</div>
   ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
@@ -1238,6 +1269,7 @@ let chosenR=0;
 const roundsFor=n=>roundChoices(n).includes(chosenR)?chosenR:defaultRounds(n);
 function updateNote(){
   const n=approved().length,w=M.length-n,ok=validN(n),adm=isAdmin();
+  renderPay();
   if($('pcount'))$('pcount').textContent=n;
   const rb=$('rbox');
   if(rb){
@@ -1640,7 +1672,7 @@ function doneOpenHTML(){
 /* ---------- data ---------- */
 /* Events that are not finished come with their schedule, so the dashboard can say what each player has to do next. */
 async function loadActive(){
-  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format,league_id,night,nights,min_players,cap,courts';
+  const cols='id,code,name,starts_at,location,status,current_round,created_at,fee,result,admin_id,kind,money,rated,format,league_id,night,nights,min_players,cap,courts,pay_venmo,pay_zelle';
   const [a,d]=await Promise.all([
     sb.from('tournaments').select(cols+',rounds,pids,players').neq('status','done').order('created_at',{ascending:false}),
     sb.from('tournaments').select(cols).eq('status','done').order('created_at',{ascending:false}).limit(100)]);
@@ -2038,6 +2070,15 @@ const actions={
     await refresh();
     toast(r.waitlisted?`${r.name} is on the wait list`:r.approved?`${r.name} joined`:`${r.name} joined. Approve them once they have paid`);
   },
+  async paysave(){
+    const v=($('payv')?.value||'').trim(),z=($('payz')?.value||'').trim();
+    await rpc('set_pay',{p_tid:T.id,p_venmo:v||null,p_zelle:z||null});
+    T.pay_venmo=v.replace(/^@/,'')||null;T.pay_zelle=z||null;
+    try{ls.set('pb_pay',JSON.stringify({v:T.pay_venmo||'',z:T.pay_zelle||''}))}catch(e){}
+    if($('payv'))$('payv').value=T.pay_venmo||'';
+    toast('Payment info saved');
+  },
+  async paycopy(el){try{await navigator.clipboard.writeText(el.dataset.v);toast('Copied. Open your bank app to send it')}catch(e){toast(el.dataset.v)}},
   async pinadd(){
     const u=($('pinu')?.value||'').trim(),pw=($('pinp')?.value||'').trim();
     if(!u||!pw)return toast('Enter their username and PIN');
