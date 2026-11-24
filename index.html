@@ -259,16 +259,17 @@ function limitsSummary(){
   return `<b>${spotsUsed()}</b> of <b>${capN()}</b> spots taken${isFree(T)?'':` · minimum ${minN()}`}${w?` · <b>${w}</b> on the wait list`:''}${lg?' (two players per team)':''}`;
 }
 /* a player who forgot their phone signs in on the director's device: username + PIN, then they are in the lobby with their own rating */
+function pinMsg(msg){document.querySelectorAll('.pinerr').forEach(e=>{e.textContent=msg||'';e.style.display=msg?'':'none'});if(msg)toast(msg)}
 function pinAdd(){
   return `<div class="pinadd" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bd)"><h2 style="margin:0 0 4px;font-size:15px">Forgot their phone?</h2>
     <div class="note" style="margin:0 0 12px">Players can sign in or sign up on this device and join right here. Your own sign-in is not affected.</div>
     <div class="grp" style="margin:0 0 6px">Already registered</div>
     <div class="row" style="gap:10px"><input id="pinu" placeholder="Username" autocapitalize="none" autocomplete="off" maxlength="30"><input id="pinp" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" maxlength="8" style="flex:0 0 90px"></div>
-    <button class="sec" data-act="pinadd" style="margin-top:12px">Add player</button>
+    <button class="sec" data-act="pinadd" style="margin-top:12px">Add player</button><div class="pinerr note" role="alert" style="display:none;margin:8px 0 0;color:#b3261e;font-weight:600"></div>
     <div class="grp" style="margin:18px 0 6px">New player</div>
     <div class="row" style="gap:10px"><input id="npu" placeholder="Pick a username" autocapitalize="none" autocomplete="off" maxlength="20"><input id="npp" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" maxlength="6" style="flex:0 0 90px"></div>
     <div class="row" style="gap:10px;margin-top:10px"><input id="npn" placeholder="Full name (optional)" maxlength="24" autocomplete="off"><input id="npd" type="number" step="0.01" min="2" max="6" inputmode="decimal" placeholder="DUPR" autocomplete="off" style="flex:0 0 90px"></div>
-    <button style="margin-top:12px" data-act="newplayer">Create account and add</button>
+    <button style="margin-top:12px" data-act="newplayer">Create account and add</button><div class="pinerr note" role="alert" style="display:none;margin:8px 0 0;color:#b3261e;font-weight:600"></div>
     <div class="note" style="margin-top:8px">The PIN is 4 to 6 digits. DUPR is optional (2.0 to 6.0). They can sign in with this username and PIN on their own phone later, and keep their rating.</div></div>`;
 }
 /* paying the entry fee: the director says where to send it (Venmo and/or Zelle); players get the amount and a link */
@@ -320,7 +321,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v54 · Nov 22, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v55 · Nov 23, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1805,6 +1806,16 @@ async function refresh(){
   }finally{busy=false}
 }
 
+/* a background refresh redraws the list, which used to wipe what the director had typed into the add-a-player boxes */
+const KEEP=['pinu','pinp','npu','npp','npn','npd','gname'];
+function keepForm(fn){return function(){
+  const ae=document.activeElement,saved={},fid=ae&&ae.id;
+  KEEP.forEach(i=>{const e=$(i);if(e&&e.value)saved[i]=e.value});
+  const r=fn.apply(this,arguments);
+  KEEP.forEach(i=>{const e=$(i);if(e&&saved[i]!==undefined)e.value=saved[i]});
+  if(fid&&KEEP.includes(fid)&&$(fid)&&document.activeElement!==$(fid))try{$(fid).focus()}catch(e){}
+  return r}}
+renderOpen=keepForm(renderOpen);renderOP=keepForm(renderOP);renderMembers=keepForm(renderMembers);
 /* ---------- actions ---------- */
 const actions={
   mode(el){authMode=el.dataset.m;fgStep='email';render();$('un')?.focus()},
@@ -2063,9 +2074,10 @@ const actions={
   async newplayer(){
     const g=id=>($(id)?.value||'').trim();
     const u=g('npu'),pw=g('npp'),nm=g('npn'),dp=g('npd');
-    if(!u||!pw)return toast('Pick a username and a 4 to 6 digit PIN');
-    const r=await rpc('create_player',{p_tid:T.id,p_username:u,p_pin:pw,p_display:nm||null,p_dupr:dp?+dp:null});
-    if(!r||!r.ok){const f={username:'npu',pin:'npp',display:'npn',dupr:'npd'}[r&&r.field];if(f&&$(f))$(f).focus();return toast((r&&r.error)||'Could not create that account')}
+    if(!u||!pw)return pinMsg('Pick a username and a 4 to 6 digit PIN');
+    pinMsg('');
+    let r;try{r=await rpc('create_player',{p_tid:T.id,p_username:u,p_pin:pw,p_display:nm||null,p_dupr:dp?+dp:null})}catch(e){return pinMsg((e&&e.friendly)||'Could not reach the server. Nothing was added, so try again')}
+    if(!r||!r.ok){const f={username:'npu',pin:'npp',display:'npn',dupr:'npd'}[r&&r.field];if(f&&$(f))$(f).focus();return pinMsg((r&&r.error)||'Could not create that account')}
     ['npu','npp','npn','npd'].forEach(i=>{if($(i))$(i).value=''});
     await refresh();
     toast(r.waitlisted?`${r.name} is on the wait list`:r.approved?`${r.name} joined`:`${r.name} joined. Approve them once they have paid`);
@@ -2081,9 +2093,10 @@ const actions={
   async paycopy(el){try{await navigator.clipboard.writeText(el.dataset.v);toast('Copied. Open your bank app to send it')}catch(e){toast(el.dataset.v)}},
   async pinadd(){
     const u=($('pinu')?.value||'').trim(),pw=($('pinp')?.value||'').trim();
-    if(!u||!pw)return toast('Enter their username and PIN');
-    const r=await rpc('join_with_pin',{p_tid:T.id,p_username:u,p_pin:pw});
-    if(!r||!r.ok)return toast((r&&r.error)||'Could not add that player');
+    if(!u||!pw)return pinMsg('Enter their username and PIN');
+    pinMsg('');
+    let r;try{r=await rpc('join_with_pin',{p_tid:T.id,p_username:u,p_pin:pw})}catch(e){return pinMsg((e&&e.friendly)||'Could not reach the server. Nothing was added, so try again')}
+    if(!r||!r.ok)return pinMsg((r&&r.error)||'Could not add that player');
     $('pinu').value='';$('pinp').value='';
     await refresh();
     toast(r.waitlisted?`${r.name} is on the wait list`:r.approved?`${r.name} added`:`${r.name} added. Approve them once they have paid`);
