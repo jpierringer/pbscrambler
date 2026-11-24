@@ -321,7 +321,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v55 · Nov 23, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v56 · Nov 23, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -2203,9 +2203,18 @@ document.addEventListener('input',e=>{
   else if(t.dataset&&t.dataset.g&&(view==='open'||view==='op'))drafts[`g-${t.dataset.g}-${t.dataset.s}`]=t.value;
   else if(t.dataset&&t.dataset.m!==undefined&&view==='play')drafts[`${cur}-${t.dataset.m}-${t.dataset.s}`]=t.value;
 });
-document.addEventListener('focusout',()=>{
-  setTimeout(()=>{if(needRound&&view==='play'&&!scoreFocused())renderRound();if(needOpen&&view==='open'&&!typing())renderOpen()},80);
-});
+/* tapping a button first takes focus off the text box; redrawing at that moment swapped the button out from under the finger, so the tap was lost and had to be repeated. Wait until the tap is finished. */
+let ptrDown=false,ptrSeq=0;
+document.addEventListener('pointerdown',()=>{ptrDown=true;ptrSeq++},true);
+const ptrUp=()=>{const n=ptrSeq;setTimeout(()=>{if(n!==ptrSeq)return;ptrDown=false;flushDeferred()},350)};
+document.addEventListener('pointerup',ptrUp,true);document.addEventListener('pointercancel',ptrUp,true);
+function flushDeferred(){
+  if(ptrDown)return;
+  if(needRound&&view==='play'&&!scoreFocused())renderRound();
+  if(needOpen&&view==='open'&&!typing())renderOpen();
+  if(needOp&&view==='op'&&!typing())renderOP();
+}
+document.addEventListener('focusout',()=>{setTimeout(flushDeferred,80)});
 document.addEventListener('change',async e=>{
   if(e.target.id==='twhen'){newWhen=e.target.value;return}
   if(e.target.id==='tnights'){newNights=+e.target.value||4;return}
