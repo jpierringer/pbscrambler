@@ -260,8 +260,24 @@ function limitsSummary(){
 }
 /* a player who forgot their phone signs in on the director's device: username + PIN, then they are in the lobby with their own rating */
 function pinMsg(msg){document.querySelectorAll('.pinerr').forEach(e=>{e.textContent=msg||'';e.style.display=msg?'':'none'});if(msg)toast(msg)}
+/* adding players on this device needs the director's PIN; it stays unlocked for 5 minutes (the server enforces it too) */
+let kioskUntil=0,kioskTimer=null;
+const kioskLeft=()=>Math.max(0,Math.round((kioskUntil-Date.now())/1000));
+const mmss=n=>Math.floor(n/60)+':'+String(n%60).padStart(2,'0');
+function redrawPinAdd(){document.querySelectorAll('.pinadd').forEach(e=>{e.outerHTML=pinAdd()})}
+function kioskTick(){
+  const n=kioskLeft();
+  document.querySelectorAll('.kcount').forEach(e=>e.textContent=mmss(n));
+  if(!n)kioskLockLocal();
+}
+function kioskLockLocal(){kioskUntil=0;if(kioskTimer){clearInterval(kioskTimer);kioskTimer=null}redrawPinAdd()}
 function pinAdd(){
+  if(!kioskLeft())return `<div class="pinadd" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bd)"><h2 style="margin:0 0 4px;font-size:15px">Forgot their phone?</h2>
+    <div class="note" style="margin:0 0 12px">Enter your director PIN to let players sign in or create an account on this device. It stays unlocked for 5 minutes.</div>
+    <div class="row" style="gap:10px"><input id="kpin" type="password" inputmode="numeric" placeholder="Your director PIN" autocomplete="off" maxlength="8"><button class="sec" data-act="kunlock" style="flex:0 0 auto;width:auto">🔒 Unlock</button></div>
+    <div class="pinerr note" role="alert" style="display:none;margin:8px 0 0;color:#b3261e;font-weight:600"></div></div>`;
   return `<div class="pinadd" style="margin-top:18px;padding-top:14px;border-top:1px solid var(--bd)"><h2 style="margin:0 0 4px;font-size:15px">Forgot their phone?</h2>
+    <div class="row sp" style="align-items:center;gap:10px;margin:8px 0 12px;padding:8px 12px;border-radius:10px;background:var(--ac2)"><div style="font-weight:600;color:var(--ac);white-space:nowrap">🔓 Unlocked · <span class="kcount">${mmss(kioskLeft())}</span></div><button class="sec sm" data-act="klock" style="background:#fff;flex:0 0 auto;width:auto">Lock now</button></div>
     <div class="note" style="margin:0 0 12px">Players can sign in or sign up on this device and join right here. Your own sign-in is not affected.</div>
     <div class="grp" style="margin:0 0 6px">Already registered</div>
     <div class="row" style="gap:10px"><input id="pinu" placeholder="Username" autocapitalize="none" autocomplete="off" maxlength="30"><input id="pinp" type="password" inputmode="numeric" placeholder="PIN" autocomplete="off" maxlength="8" style="flex:0 0 90px"></div>
@@ -321,7 +337,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v56 · Nov 23, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v57 · Nov 23, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1769,6 +1785,7 @@ async function openT(id){
   return true;
 }
 async function goHome(){
+  if(kioskUntil){kioskUntil=0;if(kioskTimer){clearInterval(kioskTimer);kioskTimer=null}rpc('director_lock',{},true).catch(()=>{})}
   unsubscribe();dlg='';T=null;NOTE=null;M=[];games=[];view='home';ls.del('pb_last');
   await loadMine();render();window.scrollTo(0,0);
 }
@@ -2071,12 +2088,22 @@ const actions={
     if(navigator.share){try{await navigator.share({title:'Pickleball Scrambler',text:'Join my pickleball event! Code '+T.code,url});return}catch(e){if(e.name==='AbortError')return}}
     try{await navigator.clipboard.writeText(url);toast('Link copied')}catch(e){$('lnk').select();toast('Copy the link shown above')}
   },
+  async kunlock(){
+    const v=($('kpin')?.value||'').trim();
+    if(!v)return pinMsg('Enter your director PIN');
+    let r;try{r=await rpc('director_unlock',{p_pin:v},true)}catch(e){return pinMsg((e&&e.friendly)||'Could not reach the server. Try again')}
+    if(!r||!r.ok){if($('kpin')){$('kpin').value='';$('kpin').focus()}return pinMsg((r&&r.error)||'Wrong PIN')}
+    kioskUntil=Date.now()+(+r.seconds||300)*1000-1500;
+    if(kioskTimer)clearInterval(kioskTimer);kioskTimer=setInterval(kioskTick,1000);
+    redrawPinAdd();toast('Unlocked for 5 minutes');
+  },
+  async klock(){kioskLockLocal();try{await rpc('director_lock',{},true)}catch(e){}toast('Locked')},
   async newplayer(){
     const g=id=>($(id)?.value||'').trim();
     const u=g('npu'),pw=g('npp'),nm=g('npn'),dp=g('npd');
     if(!u||!pw)return pinMsg('Pick a username and a 4 to 6 digit PIN');
     pinMsg('');
-    let r;try{r=await rpc('create_player',{p_tid:T.id,p_username:u,p_pin:pw,p_display:nm||null,p_dupr:dp?+dp:null})}catch(e){return pinMsg((e&&e.friendly)||'Could not reach the server. Nothing was added, so try again')}
+    let r;try{r=await rpc('create_player',{p_tid:T.id,p_username:u,p_pin:pw,p_display:nm||null,p_dupr:dp?+dp:null})}catch(e){if(/director PIN/.test((e&&e.friendly)||'')){kioskLockLocal();return pinMsg(e.friendly)}return pinMsg((e&&e.friendly)||'Could not reach the server. Nothing was added, so try again')}
     if(!r||!r.ok){const f={username:'npu',pin:'npp',display:'npn',dupr:'npd'}[r&&r.field];if(f&&$(f))$(f).focus();return pinMsg((r&&r.error)||'Could not create that account')}
     ['npu','npp','npn','npd'].forEach(i=>{if($(i))$(i).value=''});
     await refresh();
@@ -2095,7 +2122,7 @@ const actions={
     const u=($('pinu')?.value||'').trim(),pw=($('pinp')?.value||'').trim();
     if(!u||!pw)return pinMsg('Enter their username and PIN');
     pinMsg('');
-    let r;try{r=await rpc('join_with_pin',{p_tid:T.id,p_username:u,p_pin:pw})}catch(e){return pinMsg((e&&e.friendly)||'Could not reach the server. Nothing was added, so try again')}
+    let r;try{r=await rpc('join_with_pin',{p_tid:T.id,p_username:u,p_pin:pw})}catch(e){if(/director PIN/.test((e&&e.friendly)||'')){kioskLockLocal();return pinMsg(e.friendly)}return pinMsg((e&&e.friendly)||'Could not reach the server. Nothing was added, so try again')}
     if(!r||!r.ok)return pinMsg((r&&r.error)||'Could not add that player');
     $('pinu').value='';$('pinp').value='';
     await refresh();
@@ -2229,6 +2256,7 @@ document.addEventListener('change',async e=>{
 });
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'&&dlg){dlg='';renderModal();return}
+  if(e.key==='Enter'&&e.target&&e.target.id==='kpin'){e.preventDefault();actions.kunlock();return}
   if(e.key!=='Enter')return;
   const id=e.target.id;
   if(id==='gname')actions.addguest();
