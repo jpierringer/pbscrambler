@@ -85,6 +85,15 @@ button.sm{width:auto;padding:6px 12px;font-size:13px}
 .sc{text-align:center;font-weight:700;font-size:18px}
 .t{font-weight:600}
 table{width:100%;border-collapse:collapse;font-size:15px}
+.bk-l{display:grid;gap:8px;margin-bottom:6px}
+.bk-m{border:1px solid var(--bd);border-radius:10px;overflow:hidden}
+.bk-t{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:15px}
+.bk-t+.bk-t{border-top:1px solid var(--bd)}
+.bk-t .sd{min-width:16px;font-size:12px;color:var(--mu);font-weight:600}
+.bk-t .nm{flex:1;min-width:0}
+.bk-t.w{background:var(--ac2);font-weight:700}
+.bk-t.me .nm::after{content:' (you)';color:var(--mu);font-weight:400;font-size:13px}
+@media (min-width:900px){.bk-l{grid-template-columns:1fr 1fr}}
 th{font-size:12px;color:var(--mu);text-align:right;font-weight:600;padding:4px}
 td{padding:8px 4px;text-align:right;border-top:1px solid var(--bd)}
 th:first-child,td:first-child{text-align:left}th:nth-child(2),td:nth-child(2){text-align:left}
@@ -330,6 +339,20 @@ function limitsCard(){
 /* payouts at a glance: every paid place at the minimum and maximum number of players (and at today's count) */
 function payTable(){
   if(!T||!cash()||!(+T.fee>0))return '';
+  if(isBracket()){
+    const fee=+T.fee,ev=x=>x-x%2,lo=Math.max(4,minN()+minN()%2),hi=ev(Math.min(16,capN())),now=ev(approved().length);
+    const cols=[{n:lo,lab:hi===lo?`${lo} players`:`Min · ${lo}`}];
+    if(now>lo&&now<hi)cols.push({n:now,lab:`Now · ${now}`,now:1});
+    if(hi>lo)cols.push({n:hi,lab:`Max · ${hi}`});
+    const bz=T.bronze!==false;cols.forEach(c=>c.p=bracketPay(c.n,fee,brK(T.bracket_size,c.n/2),bz&&brK(T.bracket_size,c.n/2)>=4));
+    const cell=(v,c)=>`<td style="text-align:right;${c.now?'font-weight:700;color:var(--ac)':''}">${v}</td>`,dash='<span style="color:var(--mu)">–</span>';
+    const row=(lab,f)=>`<tr><td style="text-align:left">${lab}</td>${cols.map(c=>cell(f(c.p)?$$(f(c.p)):dash,c)).join('')}</tr>`;
+    let h=`<div class="grp" style="margin:14px 0 6px">Payouts per player</div><table class="ptbl"><tr><th style="text-align:left">Finish</th>${cols.map(c=>`<th style="text-align:right;${c.now?'color:var(--ac)':''}">${c.lab}</th>`).join('')}</tr>`;
+    h+=row('Champions',p=>p.c)+row('Runners-up',p=>p.r);
+    if(cols.some(c=>c.p.s))h+=row(bz?'Third place':'Semifinal losers',p=>p.s);
+    h+=`<tr><td style="text-align:left;border-top:2px solid var(--bd)"><b>Pool</b></td>${cols.map(c=>cell(`<b>${$$(c.n*fee)}</b>`,c)).join('')}</tr></table>`;
+    return h+`<div class="note" style="margin-top:6px">Amounts are for each partner. With 6 or more teams ${bz?'the bronze match winners get':'both semifinal losers get'} their entry back; the champions take 65% of the rest and the runners-up the remainder.</div>`;
+  }
   const fee=+T.fee,lo=isSeries()?4:minN(),hi=isSeries()?4:Math.min(16,capN()),now=approved().length;
   const cols=[{n:lo,lab:hi===lo?`${lo} players`:`Min · ${lo}`}];
   if(now>lo&&now<hi&&validN(now))cols.push({n:now,lab:`Now · ${now}`,now:1});
@@ -354,7 +377,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v58 · Nov 25, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v60 · Nov 25, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -362,12 +385,12 @@ const isLeague=()=>!!T&&T.kind==='league';
 const isLeagueNight=()=>!!T&&T.kind==='scramble'&&T.format==='league';
 const shortN=n=>String(n??'').replace(/ \([^)]*\)$/,'');
 const unit=()=>isSeries()?'Game':'Round';
-const fmtName=x=>x.kind==='open'?'Rec play':x.kind==='openplay'?'Open play':x.format==='league'?(x.kind==='league'?'Partner league':'League night'):x.format==='series'?'4-player rotation':'Scramble';
+const fmtName=x=>x.kind==='open'?'Rec play':x.kind==='openplay'?'Open play':x.format==='league'?(x.kind==='league'?'Partner league':'League night'):x.format==='series'?'4-player rotation':x.format==='bracket'?'Round robin + bracket':'Scramble';
 const cash=()=>!!T&&!isFree(T)&&T.money!==false;
 /* event type: 'money' (Moneyball + Rated), 'rated' (no money) or 'fun' (no money, no rating) */
 const typeOf=t=>!t?'rated':!isFree(t)&&t.money!==false?'money':t.rated===false?'fun':'rated';
 const typeText=t=>({money:'Moneyball + Rated',rated:'Rated',fun:'Just for fun'})[typeOf(t)];
-const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn);
+const tournamentOver=()=>T.current_round===T.rounds.length&&T.rounds.every(allIn)&&(T.format!=='bracket'||bracketOver());
 
 /* ---------- payouts + schedule ---------- */
 /* Payouts: 1st gets half the pot and the last paid place gets exactly its entry fee back. The other places
@@ -534,14 +557,15 @@ function rankTeams(rows,ms){
   return out;
 }
 /* team table of one league night, from the schedule (a seat = a team member's spot; a sub shares the seat of who they replaced) */
-function standingsLeague(){
-  const nt=(T.players.length-swapList().length)/2;
-  const rows=Array.from({length:nt},(_,k)=>({k,i:2*k,pf:0,pa:0,g:0,gw:0})),ms=[];
-  T.rounds.forEach(R=>R.forEach(m=>{
+function standingsLeague(pool){
+  const nt=(T.players.length-swapList().length)/2,ks=pool!=null&&Array.isArray(T.pools)?new Set(T.pools[pool]):null;
+  const rows=Array.from({length:nt},(_,k)=>({k,i:2*k,pf:0,pa:0,g:0,gw:0})).filter(r=>!ks||ks.has(r.k)),ms=[],at={};rows.forEach(r=>at[r.k]=r);
+  T.rounds.forEach(R=>!brRound(R)&&R.forEach(m=>{
     if(!filled(m))return;
-    const a=Math.floor(seatOf(m.a[0])/2),b=Math.floor(seatOf(m.b[0])/2),sa=+m.sa,sb=+m.sb;
-    rows[a].pf+=sa;rows[a].pa+=sb;rows[a].g++;rows[b].pf+=sb;rows[b].pa+=sa;rows[b].g++;
-    if(sa>sb)rows[a].gw++;else if(sb>sa)rows[b].gw++;
+    const ka=Math.floor(seatOf(m.a[0])/2),kb=Math.floor(seatOf(m.b[0])/2);if(!at[ka]||!at[kb])return;
+    const a=ka,b=kb,sa=+m.sa,sb=+m.sb;
+    at[a].pf+=sa;at[a].pa+=sb;at[a].g++;at[b].pf+=sb;at[b].pa+=sa;at[b].g++;
+    if(sa>sb)at[a].gw++;else if(sb>sa)at[b].gw++;
     ms.push({a,b,sa,sb});
   }));
   const out=rankTeams(rows,ms);
@@ -550,12 +574,13 @@ function standingsLeague(){
 }
 const teamTable=(rows,onlyMine)=>'<tr><th>#</th><th>Team</th><th>W–L</th><th>+/−</th></tr>'+rows.map(x=>`<tr class="${x.mine?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${esc(x.n)}</td><td>${x.gw}–${x.g-x.gw}</td><td>${x.d>0?'+':''}${x.d}</td></tr>`).join('');
 function resultRows(){
+  if(isBracket())return bracketResultRows();
   if(isLeagueNight())return standingsLeague().map(x=>({n:x.n,ps:x.ps,pl:x.pl,...(x.tie?{tie:true}:{}),gw:x.gw,g:x.g,w:x.gw,l:x.g-x.gw,pf:x.pf,d:x.pf-x.pa}));
   const p=cash()?payoutsFor(seatCount(),+T.fee||0):[],st=placed(standings(),p);
   return st.map(x=>({p:T.pids?.[x.i]??null,n:x.n,...(x.was?.length?{was:x.was}:{}),pf:x.pf,d:x.pf-x.pa,pay:x.pay,pl:x.pl,...(x.tie?{tie:true,odd:x.odd}:{}),gw:x.gw,g:x.g,...(isSeries()?{sw:x.sw}:{})}));
 }
 function standings(){
-  if(isLeagueNight())return standingsLeague();
+  if(isLeagueNight()||isBracket())return standingsLeague();
   if(isSeries())return standingsSeries();
   const s=T.players.map((n,i)=>({i,n,pf:0,pa:0,g:0,gw:0}));
   T.rounds.forEach(r=>r.forEach(m=>{
@@ -903,17 +928,18 @@ function eventReport(){
   const r=Array.isArray(T.result)?T.result:[],fin=open?games.filter(g=>gDone(g)&&!g.voided).slice().reverse():[];
   const meta=[`${fmtName(T)}${lg&&T.night?' · Night '+T.night:''} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`,longDate(T.starts_at||T.created_at)];
   if(T.location)meta.push(T.location);
-  meta.push(`${r.length} ${lg?'teams':'players'}${c?` · ${$$(+T.fee*r.length)} pool · entry ${$$(+T.fee)}`:''}${open?` · ${fin.length} games`:''}`);
+  meta.push(`${isBracket()?r.length/2:r.length} ${lg||isBracket()?'teams':'players'}${c?` · ${$$(+T.fee*r.length)} pool · entry ${$$(+T.fee)}`:''}${open?` · ${fin.length} games`:''}`);
   if(T.status!=='done')meta.push('In progress: results so far');
   if(T.ended_early)meta.push('Ended early when time ran out. Games that were not played are not on record.');
   const place=(x,i)=>`${x.tie?'T':''}${x.pl||i+1}`,nm=x=>shortN(x.n)+(x.was&&x.was.length?` (for ${x.was.map(shortN).join(', ')})`:'');
   let head,rows;
-  if(lg){head=['#','Team','W–L','+/−'];rows=r.map((x,i)=>[place(x,i),nm(x),`${x.gw}–${x.g-x.gw}`,signed(x.d)])}
+  if(isBracket()){head=['#','Team','RR W–L','+/−',...(c?['Paid each']:[])];const seen=new Set();rows=r.filter(x=>!seen.has(x.tm)&&seen.add(x.tm)).map((x,i)=>[place(x,i),x.tm,`${x.gw}–${x.g-x.gw}`,signed(x.d),...(c?[x.pay?$$(x.pay):'']:[])])}
+  else if(lg){head=['#','Team','W–L','+/−'];rows=r.map((x,i)=>[place(x,i),nm(x),`${x.gw}–${x.g-x.gw}`,signed(x.d)])}
   else if(open){head=['#','Player','G','W','L','+/−'];rows=r.map((x,i)=>[i+1,nm(x),x.g,x.w,x.l,signed(x.d)])}
   else if(sr){head=['#','Player','Series','Games','+/−',...(c?['Paid']:[])];rows=r.map((x,i)=>[place(x,i),nm(x),x.sw??'',x.gw!=null?x.gw+'–'+(x.g-x.gw):'',signed(x.d),...(c?[x.pay?$$(x.pay):'']:[])])}
   else{head=['#','Player','Wins','Pts','+/−',...(c?['Paid']:[])];rows=r.map((x,i)=>[place(x,i),nm(x),x.gw!=null?x.gw:'',x.pf,signed(x.d),...(c?[x.pay?$$(x.pay):'']:[])])}
   const blocks=[{h:'Results',head,rows}];
-  const notes=[...(lg||open?[]:plainLines(tieNotes(r.map(x=>({...x,pl:x.pl||0})),c))),...(open?[]:plainLines(swapNotes()))];
+  const notes=[...(lg||open||isBracket()?[]:plainLines(tieNotes(r.map(x=>({...x,pl:x.pl||0})),c))),...(open?[]:plainLines(swapNotes()))];
   if(notes.length)blocks.push({h:'Notes',lines:notes});
   if(open){
     blocks.push({h:'Games',lines:fin.map(g=>`${g.a.map(x=>shortN(x.n)).join(' & ')}  ${g.sa} – ${g.sb}  ${g.b.map(x=>shortN(x.n)).join(' & ')}${g.rated?'':' (unrated)'}`)});
@@ -921,9 +947,9 @@ function eventReport(){
     const nm2=i=>shortN(T.players?.[i]);
     const lines=[];
     T.rounds.forEach((R,ri)=>{
-      lines.push((sr&&R[0]&&R[0].s?`Series ${R[0].s} · Game ${R[0].g}`:'Round '+(ri+1))+':');
+      lines.push(rLabel(ri)+':');
       R.forEach((m,j)=>lines.push(`  ${R.length>1?'Court '+(j+1)+': ':''}${m.a.map(nm2).join(' & ')}  ${m.sa===''?'–':m.sa} – ${m.sb===''?'–':m.sb}  ${m.b.map(nm2).join(' & ')}${m.fix?' (corrected)':''}`));
-      const bye=byesOf(ri);if(bye.length)lines.push('  Sat out: '+bye.map(nm2).join(', '));
+      const bye=brRound(R)?[]:byesOf(ri);if(bye.length)lines.push('  Sat out: '+bye.map(nm2).join(', '));
     });
     blocks.push({h:'Games',lines});
   }
@@ -1103,7 +1129,7 @@ function ppinDlgHTML(){
     <button class="sp" data-act="pinsave">Change PIN</button></div>`;
 }
 function plusDlgHTML(){
-  const opn=newKind==='openplay',rec=newKind==='open',op=opn||rec,lg=newKind==='league',se=!op&&!lg&&newFormat==='series';
+  const opn=newKind==='openplay',rec=newKind==='open',op=opn||rec,lg=newKind==='league',se=!op&&!lg&&newFormat==='series',bk=!op&&!lg&&newFormat==='bracket';
   const joinCard=`<div class="card"><h2>Join with a code</h2>
       <div class="note" style="margin-top:0">Got a 5-letter code or a link from the organizer?</div>
       <div class="row"><input id="code" placeholder="CODE" maxlength="5" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;letter-spacing:3px;font-weight:700">
@@ -1117,10 +1143,11 @@ function plusDlgHTML(){
         <label>Where</label><input id="twhere" maxlength="80" placeholder="e.g. Hudson Park, courts 3–5" value="${esc(newWhere)}">
         <label>Instructions</label><textarea id="tnotes" rows="3" maxlength="500" placeholder="Parking, what to bring, how payment works…">${esc(newNotes)}</textarea></details>
       <label>Format</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
-        <button class="${!op&&!se&&!lg?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
+        <button class="${!op&&!se&&!lg&&!bk?'on':''}" data-act="fmt" data-k="scramble"><span aria-hidden="true">🎲</span> Random scramble</button>
         <button class="${se?'on':''}" data-act="fmt" data-k="series"><span aria-hidden="true">👥</span> 4-player rotation</button>
         <button class="${rec?'on':''}" data-act="fmt" data-k="open"><span aria-hidden="true">🏓</span> Rec play</button>
         <button class="${opn?'on':''}" data-act="fmt" data-k="openplay"><span aria-hidden="true">🔄</span> Open play</button>
+        <button class="${bk?'on':''}" data-act="fmt" data-k="bracket"><span aria-hidden="true">🏅</span> Round robin + bracket</button>
         <button class="${lg?'on':''}" data-act="fmt" data-k="league"><span aria-hidden="true">🏆</span> Partner league</button></div>
       ${lg?`<label>Nights</label><select id="tnights">${Array.from({length:12},(_,i)=>i+1).map(n=>`<option value="${n}"${n===newNights?' selected':''}>${n} night${n==1?'':'s'}</option>`).join('')}</select>`:''}
       <label>Type</label><div class="tabs" style="margin-bottom:0;flex-wrap:wrap">
@@ -1128,8 +1155,8 @@ function plusDlgHTML(){
         <button class="${newType==='rated'?'on':''}" data-act="typ" data-v="rated"><span aria-hidden="true">📊</span> Rated</button>
         <button class="${newType==='fun'?'on':''}" data-act="typ" data-v="fun"><span aria-hidden="true">🎉</span> Just for fun</button></div>
       <div class="note" style="margin-top:6px">${newType==='money'?'Entry fee and payouts. Games to 11, win by 1. Counts toward ratings.':newType==='rated'?'No money. Counts toward ratings.':'No money and no rating. Nothing here changes anyone\'s rating.'}</div>
-      <button class="sp" data-act="create">${opn?'Start open play':rec?'Start rec play':lg?'Start a league':se?'Start a 4-player rotation':'Start a new event'}</button>
-      <div class="note">${lg?`Partners stay together for every night. Players join with the code and pair up (a player invites their partner, or you pair people). Each night is its own event: every team plays every other team once, games to 11. You'll be the director, and everyone enters their own scores. No money.`:se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${(newType==='money')?': you approve players once they pay':''}, and everyone enters their own scores.`:op
+      <button class="sp" data-act="create">${opn?'Start open play':rec?'Start rec play':lg?'Start a league':se?'Start a 4-player rotation':bk?'Start a bracket event':'Start a new event'}</button>
+      <div class="note">${bk?`Partners sign up as teams. Teams play a round robin (in two pools from 6 teams), then the top teams play a single-elimination bracket seeded by pool play, with crossover semifinals, a final and a bronze match for 3rd. Games to 11. You'll be the director${newType==='money'?': you approve players once they pay, and 1st and 2nd are paid, and 3rd gets the entry back with 6+ teams':''}.`:lg?`Partners stay together for every night. Players join with the code and pair up (a player invites their partner, or you pair people). Each night is its own event: every team plays every other team once, games to 11. You'll be the director, and everyone enters their own scores. No money.`:se?`Exactly 4 players. Partners are drawn so everyone plays with everyone once: three best-of-3 series, 6 to 9 games on one court. You'll be the director${(newType==='money')?': you approve players once they pay':''}, and everyone enters their own scores.`:op
         ?(opn?'A drop-in session. Players come and go with the code, and whoever is playing sets up the next game on a free court. Scores are entered on the court, then everyone goes back to the lobby. You review and approve the games and close the event when play is over. No money.':'You pick who plays with and against whom. Players can join any time, start games when a court is free, and enter their own scores. No money in rec play.')
         :`Teams are drawn for you each round, no repeat partners. You'll be the director: you ${(newType==='money')?'approve players once they pay, ':''}start each round, and everyone enters their own scores.`}</div></div>
     ${first?'':joinCard}`;
@@ -1252,6 +1279,159 @@ function leagueHTML(){
   return h;
 }
 
+/* ---------- round robin + bracket ----------
+   Fixed partners pair up in the lobby. Play starts with a round robin between the teams; when its last score is in, the
+   server seeds the top 2, 4 or 8 teams into a single-elimination bracket (bracket games carry ph 'br', lv, ta/tb, sd) and adds
+   each next bracket round as soon as the one before it is complete. */
+const isBracket=()=>!!T&&T.format==='bracket';
+const brRound=R=>!!(R&&R[0]&&R[0].ph==='br');
+const nTeams=()=>Math.floor(seatCount()/2);
+const brK=(size,nt)=>(size||4)>=8&&nt>=8?8:(size||4)>=4&&nt>=4?4:2;
+const brSize=()=>T.status==='lobby'?brK(T.bracket_size,Math.max(2,lgTeams().full.length)):(T.bracket_size||brK(4,nTeams()));
+const brLevels=k=>Math.round(Math.log2(k));
+const brName=(lv,k)=>{const left=brLevels(k)-lv;return left<=0?'Final':left===1?'Semifinal':'Quarterfinal'};
+const brNames=(lv,k)=>{const left=brLevels(k)-lv;return left<=0?'Final':left===1?'Semifinals':'Quarterfinals'};
+const teamName=k=>[occupantOf(2*k),occupantOf(2*k+1)].map(i=>shortN(T.players[i])).join(' & ');
+const brWinner=m=>filled(m)?(+m.sa>+m.sb?m.ta:m.tb):null;
+const bracketOver=()=>{const R=T.rounds[T.rounds.length-1];return brRound(R)&&R[0].lv===brLevels(brSize())&&R.every(filled)};
+const twoPools=()=>Array.isArray(T.pools)&&T.pools.length===2;
+const PN=['A','B'];
+const rLabel=ri=>{const R=T.rounds[ri];if(isSeries()&&R[0].s)return `Series ${R[0].s} · Game ${R[0].g}`;if(isBracket()&&brRound(R))return brNames(R[0].lv,brSize())+(R.some(m=>m.bz)?' + bronze':'');return 'Round '+(ri+1)};
+const rShort=ri=>{const R=T.rounds[ri];if(isBracket()&&brRound(R)){const n=brNames(R[0].lv,brSize());return n==='Final'?'🏆 Final':n==='Semifinals'?'Semis':'Quarters'}return null};
+/* money (per player, split between partners): with 6+ teams 3rd place gets the entry fee back (both semifinal losers when
+   there is no bronze match); the champions take 65% of the rest and the runners-up the remainder */
+function bracketPay(n,fee,k,bz){
+  const u=[1,.5,.25,.1,.05,.01].find(x=>Math.abs(fee/x-Math.round(fee/x))<1e-6)||.01,f=Math.round(fee/u),P=n*f;
+  const sp=k>=4&&n/2>=6?f:0,R=P-(bz?2:4)*sp,c=Math.round(R*0.65/2),r=(R-2*c)/2;
+  return {c:c*u,r:r*u,s:sp*u,bz:!!bz};
+}
+/* teams in finishing order: bracket stage first (champion, runner-up, semifinal losers, quarterfinal losers), then round-robin rank */
+function bracketPlaces(){
+  const k=brSize(),L=brLevels(k),stage={};
+  /* teams outside the bracket: by place in their pool, then wins and point differential */
+  const rr=twoPools()?[0,1].flatMap(q=>standingsLeague(q).map((r,i)=>({...r,pp:i}))).sort((a,b)=>a.pp-b.pp||b.gw-a.gw||(b.pf-b.pa)-(a.pf-a.pa)||a.k-b.k):standingsLeague();
+  T.rounds.filter(brRound).forEach(R=>R.forEach(m=>{
+    if(m.bz){stage[m.ta]=stage[m.tb]=L-0.5;if(filled(m))stage[brWinner(m)]=L-0.25;return}
+    stage[m.ta]=Math.max(stage[m.ta]||0,m.lv);stage[m.tb]=Math.max(stage[m.tb]||0,m.lv);
+    if(m.lv===L&&filled(m))stage[brWinner(m)]=L+1;
+  }));
+  const pos={};rr.forEach((r,i)=>pos[r.k]=i);
+  const rows=rr.map(r=>({...r,st:stage[r.k]||0})).sort((a,b)=>b.st-a.st||pos[a.k]-pos[b.k]);
+  for(let i=0;i<rows.length;){
+    let j=i+1;if(rows[i].st)while(j<rows.length&&rows[j].st===rows[i].st)j++;
+    for(let q=i;q<j;q++){rows[q].pl=i+1;rows[q].tie=j-i>1}
+    i=j;
+  }
+  /* prize money: each finishing position has a per-player amount; teams sharing a place share those positions evenly */
+  if(cash()){
+    const bp=bracketPay(seatCount(),+T.fee||0,k,T.bronze!==false&&k>=4),at=i=>i===0?bp.c:i===1?bp.r:(bp.bz?i===2:i<4)?bp.s:0,u=feeUnit();
+    for(let i=0;i<rows.length;){
+      let j=i+1;while(j<rows.length&&rows[j].pl===rows[i].pl)j++;
+      const tot=Math.round(rows.slice(i,j).reduce((q,_,x)=>q+at(i+x),0)/u),m=j-i,base=Math.floor(tot/m);
+      for(let q=i;q<j;q++)rows[q].pay=Math.round((base+(q-i<tot-base*m?1:0))*u*100)/100;
+      i=j;
+    }
+  }
+  return rows;
+}
+function bracketResultRows(){
+  const out=[];
+  bracketPlaces().forEach(r=>[occupantOf(2*r.k),occupantOf(2*r.k+1)].forEach(i=>out.push({p:T.pids?.[i]??null,n:T.players[i],tm:r.n,pl:r.pl,...(r.tie?{tie:true}:{}),pay:r.pay||0,gw:r.gw,g:r.g,pf:r.pf,d:r.pf-r.pa})));
+  return out;
+}
+/* the bracket, round by round; rounds not built yet show who will be in them */
+function bracketHTML(){
+  const k=brSize(),L=brLevels(k),br=T.rounds.filter(brRound);
+  const rrDone=T.rounds.filter(R=>!brRound(R)).every(allIn);
+  const two=twoPools(),proj=rrDone?null:two?[standingsLeague(0),standingsLeague(1)]:standingsLeague();
+  const pairs=two?{8:[['A1','B4'],['B2','A3'],['B1','A4'],['A2','B3']],4:[['A1','B2'],['B1','A2']],2:[['A1','B1']]}[k]:{8:[[1,8],[4,5],[2,7],[3,6]],4:[[1,4],[2,3]],2:[[1,2]]}[k];
+  const projT=sd=>!proj?null:two?proj[PN.indexOf(String(sd)[0])]?.[+String(sd).slice(1)-1]?.k:proj[sd-1]?.k;
+  const me=prof?.id,mineT=t=>t!=null&&[occupantOf(2*t),occupantOf(2*t+1)].some(i=>T.pids?.[i]===me);
+  const side=(t,sd,sc,win,label)=>`<div class="bk-t${win?' w':''}${mineT(t)?' me':''}"><span class="sd">${sd||''}</span><span class="nm">${t!=null?esc(teamName(t)):`<i>${esc(label)}</i>`}</span><b>${sc??''}</b></div>`;
+  let h=`<h2>Bracket <span class="note" style="font-weight:400">· ${two?`top ${k/2} from each pool`:`top ${k} teams`}</span></h2>`;
+  if(!rrDone)h+=`<div class="note" style="margin:0 0 8px">Seeds are set when pool play ends. Shown as the standings are now.</div>`;
+  for(let lv=1;lv<=L;lv++){
+    const R=br.find(x=>x[0].lv===lv);
+    h+=`<div class="grp">${brNames(lv,k)}</div><div class="bk-l">`;
+    const n=k/2**lv;
+    for(let j=0;j<n;j++){
+      const m=R&&R[j];
+      if(m&&!m.bz){const f=filled(m),wa=f&&+m.sa>+m.sb,wb=f&&+m.sb>+m.sa;
+        h+=`<div class="bk-m">${side(m.ta,m.sd?.[0],f?m.sa:'',wa)}${side(m.tb,m.sd?.[1],f?m.sb:'',wb)}</div>`;}
+      else if(lv===1){const [a,b]=pairs[j],ta=projT(a),tb=projT(b),lab=x=>two?`Pool ${String(x)[0]} #${String(x).slice(1)}`:'Seed '+x;
+        h+=`<div class="bk-m">${side(ta??null,a,'',false,lab(a))}${side(tb??null,b,'',false,lab(b))}</div>`;}
+      else{const prev=brName(lv-1,k);
+        h+=`<div class="bk-m">${side(null,'','',false,`Winner of ${prev} ${2*j+1}`)}${side(null,'','',false,`Winner of ${prev} ${2*j+2}`)}</div>`;}
+    }
+    if(lv===L&&L>=2&&T.bronze!==false){
+      const bm=R&&R.find(x=>x.bz),prev=brName(lv-1,k);
+      h+=`</div><div class="grp">Bronze (3rd place)</div><div class="bk-l">`;
+      if(bm){const f=filled(bm);h+=`<div class="bk-m">${side(bm.ta,bm.sd?.[0],f?bm.sa:'',f&&+bm.sa>+bm.sb)}${side(bm.tb,bm.sd?.[1],f?bm.sb:'',f&&+bm.sb>+bm.sa)}</div>`}
+      else h+=`<div class="bk-m">${side(null,'','',false,`Loser of ${prev} 1`)}${side(null,'','',false,`Loser of ${prev} 2`)}</div>`;
+    }
+    h+='</div>';
+  }
+  const fin=br.find(x=>x[0].lv===L);
+  if(fin&&filled(fin[0]))h+=`<div class="banner" style="margin-top:10px">🏆 Champions: <b>${esc(teamName(brWinner(fin[0])))}</b></div>`;
+  return h;
+}
+/* lobby: forming teams (the same steps as a league) */
+function renderTeams(){
+  const el=$('teams');if(!el)return;
+  if(el.contains(document.activeElement)&&document.activeElement.tagName==='SELECT')return;   /* don't close a "Pair with…" list while it is open */
+  const adm=isAdmin(),L=lgTeams(),me=myMember(),mine1=me&&me.approved?me:null;
+  const mrow=(m,first,extra='')=>`<div class="mrow${first?' first':''}"><div>${esc(shortN(m.name))}${m.profile_id&&prof&&m.profile_id===prof.id?'<span class="badge">you</span>':''}${!m.profile_id?'<span class="badge">guest</span>':''}</div><div class="acts">${extra}</div></div>`;
+  let h=`<h2>Teams (${L.full.length})</h2>`;const plan=poolPlan();
+  if(mine1){
+    if(mine1.team==null)h+=`<div class="note" style="margin-top:0">You don't have a partner yet.</div><div class="row sp" style="margin-bottom:8px"><button class="sm" data-act="lgstart"><span aria-hidden="true">🤝</span> Start my team</button></div>`;
+    else{const mates=M.filter(m=>m.approved&&m.team===mine1.team&&m.id!==mine1.id);
+      h+=mates.length?`<div class="note" style="margin-top:0">Your partner: <b>${esc(shortN(mates[0].name))}</b> <button class="sec sm" data-act="lgleave" data-id="${mine1.id}" style="width:auto;margin-left:6px">Leave team</button></div>`
+        :`<div class="note" style="margin-top:0">Waiting for your partner.</div><div class="row sp" style="margin-bottom:8px"><button class="sm" data-act="lgshare"><span aria-hidden="true">📤</span> Invite my partner</button><button class="sec sm" data-act="lgleave" data-id="${mine1.id}">Cancel</button></div>`;}
+  }else if(me&&!me.approved&&!me.waitlisted)h+=`<div class="note" style="margin-top:0">You can pick a partner once the director approves you.</div>`;
+  const trow=(t,i,q)=>{const st=teamStrength(t);return `<div class="mrow${i?'':' first'}"><div>${t.m.map(m=>esc(shortN(m.name))).join(' &amp; ')}${t.m.some(m=>m.profile_id&&prof&&m.profile_id===prof.id)?'<span class="badge">you</span>':''}${adm&&st!=null?` <span class="note" style="margin:0">${st.toFixed(2)}</span>`:''}</div><div class="acts">${adm&&q!=null&&plan.pools[q].length>3?`<button class="sec sm" data-act="poolmv" data-no="${t.no}">→ Pool ${PN[1-q]}</button>`:''}${adm?`<button class="del" data-act="lgleave" data-id="${t.m[0].id}">split</button>`:''}</div></div>`};
+  if(plan){
+    plan.pools.forEach((nos,q)=>{h+=`<div class="grp">Pool ${PN[q]} (${nos.length})</div>`+nos.map(no=>L.full.find(t=>t.no===no)).filter(Boolean).map((t,i)=>trow(t,i,q)).join('')});
+    h+=`<div class="note">${plan.manual?'You set these pools.':'Pools are balanced by rating.'} Each team plays the others in its pool, then the bracket crosses over: Pool A #1 plays Pool B #2 and Pool B #1 plays Pool A #2.${adm&&plan.manual?' <button class="sec sm" data-act="poolauto" style="width:auto">Balance by rating</button>':''}</div>`;
+  }
+  else h+=L.full.length?L.full.map((t,i)=>trow(t,i,null)).join(''):'<div class="note">No full teams yet.</div>';
+  const waitMembers=L.wait.map(t=>t.m[0]);
+  const opts=self=>[...L.free,...waitMembers].filter(m=>m.id!==self).map(m=>`<option value="${m.id}">${esc(shortN(m.name))}</option>`).join('');
+  if(L.wait.length)h+=`<div class="grp">Waiting for a partner (${L.wait.length})</div>`+L.wait.map((t,i)=>mrow(t.m[0],!i,(mine1&&mine1.team==null?`<button class="sec sm" data-act="lgjoin" data-team="${t.no}">Join</button>`:'')+(adm&&L.free.length?`<select data-pair="${t.m[0].id}" aria-label="Pair ${esc(shortN(t.m[0].name))} with"><option value="">Pair with…</option>${opts(t.m[0].id)}</select>`:''))).join('');
+  const free=L.free.filter(m=>!(m.profile_id&&m.profile_id===T.admin_id&&adm&&false));
+  if(free.length)h+=`<div class="grp">No partner yet (${free.length})</div>`+free.map((m,i)=>mrow(m,!i,adm&&(free.length>1||waitMembers.length)?`<select data-pair="${m.id}" aria-label="Pair ${esc(shortN(m.name))} with"><option value="">Pair with…</option>${opts(m.id)}</select>`:'')).join('');
+  h+=`<div class="note">${adm?'Pair players with "Pair with…", or let them pair up themselves: one taps "Start my team" and sends the invite to their partner. If you are only running the event, you can stay off a team.':'Partners stay together for the whole event.'}</div>`;
+  el.innerHTML=h;
+}
+/* pools (6+ teams): balanced by rating (snake order) unless the director moved teams; as team numbers */
+function teamStrength(t){
+  const r=t.m.map(m=>{const x=m.profile_id&&board.find(b=>b.pid===m.profile_id);return x?+x.rating:null}).filter(v=>v!=null);
+  return r.length?r.reduce((a,b)=>a+b,0)/r.length:null;
+}
+function poolPlan(){
+  const full=lgTeams().full;if(full.length<6)return null;
+  const nos=full.map(t=>t.no),pp=T.pool_plan;
+  if(Array.isArray(pp)&&pp.length===2&&pp.every(x=>Array.isArray(x)&&x.length>=3)&&pp.flat().length===nos.length&&nos.every(n=>pp.flat().includes(n)))return {pools:pp,manual:true};
+  const known=full.map(teamStrength).filter(v=>v!=null),avg=known.length?known.reduce((a,b)=>a+b,0)/known.length:3.5;
+  const ord=full.map(t=>({no:t.no,s:teamStrength(t)??avg})).sort((a,b)=>b.s-a.s||a.no-b.no),A=[],B=[];
+  ord.forEach((x,i)=>([A,B,B,A][i%4]).push(x.no));
+  return {pools:[A,B],manual:false};
+}
+function bracketReady(){
+  const L=lgTeams(),loose=L.free.filter(m=>m.profile_id!==T.admin_id).length+L.wait.length,nt=L.full.length,mx=Math.min(16,capN());
+  const plan=poolPlan(),kMax=plan?(Math.min(...plan.pools.map(x=>x.length))>=4?8:4):nt>=8?8:nt>=4?4:2;
+  return {nt,loose,ok:!loose&&nt>=2&&nt*2>=minN()&&nt*2<=mx,mx,plan,kMax,k:Math.min(T.bracket_size||4,kMax)};
+}
+/* round robin within each pool; the pools play side by side, so round r holds every pool's round r */
+function genPoolRounds(pools){
+  const per=pools.map((ids,q)=>{
+    const x=shuf(ids.slice());if(x.length%2)x.push(null);
+    const m=x.length,R=[];
+    for(let r=0;r<m-1;r++){const G=[];for(let i=0;i<m/2;i++){const a=x[i],b=x[m-1-i];if(a===null||b===null)continue;const [p,q2]=Math.random()<.5?[a,b]:[b,a];G.push({a:[2*p,2*p+1],b:[2*q2,2*q2+1],sa:'',sb:'',pool:q})}R.push(G);x.splice(1,0,x.pop())}
+    return R;
+  });
+  const n=Math.max(...per.map(r=>r.length));
+  return Array.from({length:n},(_,r)=>per.flatMap(R=>R[r]||[]));
+}
 function lobbyHTML(){
   if(isLeagueNight())return nightLobbyHTML();
   const adm=isAdmin();
@@ -1270,7 +1450,8 @@ function lobbyHTML(){
   ${payCard()}
   <div class="card"><div id="mlist"></div>
     ${adm?`<div class="row sp"><input id="gname" placeholder="Add a player without a phone" maxlength="30"><button data-act="addguest" style="flex:0 0 80px">Add</button></div>${pinAdd()}`:''}</div>
-  ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
+  ${isBracket()?'<div class="card" id="teams"></div>':''}
+  ${adm?`<button data-act="start" id="startbtn"><span aria-hidden="true">▶</span> ${isSeries()?'Start the rotation':isBracket()?'Start the round robin':'Start round 1'}</button><div style="text-align:center;margin-top:14px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
 }
 /* the director sees how many women and men have shared their gender, to plan mixed play */
 function genderSummary(list){
@@ -1296,7 +1477,7 @@ function renderMembers(){
   el.innerHTML=(wait.length?`<div class="grp">Waiting for approval (${wait.length})</div>`+wait.map((m,i)=>row(m,i===0)).join(''):'')
     +`<div class="grp">Approved (${ok.length})${genderSummary(ok)}</div>`+(ok.length?ok.map((m,i)=>row(m,i===0)).join(''):'<div class="note">Nobody yet.</div>')
     +(wl.length?`<div class="grp">Wait list (${wl.length})</div>`+wl.map((m,i)=>row(m,i===0)).join(''):'');
-  syncLimits();
+  syncLimits();renderTeams();
 }
 const validN=n=>isSeries()?n===4:n>=minN()&&n<=Math.min(16,capN());
 let chosenR=0;
@@ -1307,6 +1488,19 @@ function updateNote(){
   renderPay();
   if($('pcount'))$('pcount').textContent=n;
   const rb=$('rbox');
+  if(isBracket()){
+    const B=bracketReady(),k=B.k,two=!!B.plan,rr=two?Math.max(...B.plan.pools.map(x=>lgRounds(x.length))):lgRounds(Math.max(2,B.nt));
+    if(rb&&!['bsize','bronze'].includes(document.activeElement?.id))rb.innerHTML=adm?`<label>Bracket</label><select id="bsize">${[2,4,8].filter(x=>x<=B.kMax||x===2).map(x=>`<option value="${x}"${x===k?' selected':''}>${two?(x===2?'Pool winners play the final':x===4?'Top 2 from each pool: crossover semifinals':'Top 4 from each pool: quarterfinals'):(x===2?'Top 2: just a final':x===4?'Top 4: semifinals + final':'Top 8: quarterfinals, semifinals + final')}</option>`).join('')}</select>${k>=4?`<label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-top:10px"><input type="checkbox" id="bronze" style="width:auto"${T.bronze!==false?' checked':''}> Bronze match: semifinal losers play for 3rd</label>`:''}`:'';
+    const el=$('startnote');
+    if(el)el.textContent=!adm?'':B.loose?`${B.loose} player${B.loose==1?'':'s'} still need${B.loose==1?'s':''} a partner.`:B.nt<2?'Need at least 2 full teams.':B.nt*2<minN()?`Need at least ${Math.ceil(minN()/2)} teams (the minimum you set).`:B.nt*2>B.mx?`Too many teams: at most ${B.mx/2}.`
+      :two?`${B.nt} teams in 2 pools (${B.plan.pools.map(x=>x.length).join(' + ')}) · ${rr} rounds of pool play (every team plays ${Math.min(...B.plan.pools.map(x=>x.length))-1}${new Set(B.plan.pools.map(x=>x.length)).size>1?' or '+(Math.max(...B.plan.pools.map(x=>x.length))-1):''} games), then ${k===2?'the pool winners play the final':`the top ${k/2} from each pool play the bracket`}${k>=4&&T.bronze!==false?' and a bronze match':''}. Games to 11.${w?` ${w} not approved yet will watch.`:''}`
+      :`${B.nt} teams · round robin of ${rr} round${rr==1?'':'s'} (every team plays ${B.nt-1} game${B.nt==2?'':'s'}), then the top ${k} play the bracket${k>=4&&T.bronze!==false?' with a bronze match':''}. Games to 11.${w?` ${w} not approved yet will watch.`:''}`;
+    const b=$('startbtn');if(b)b.disabled=!B.ok;
+    renderPay();if($('pcount'))$('pcount').textContent=n;
+    const bn=$('banner');
+    if(bn){const me=myMember();bn.textContent=me&&me.waitlisted?`The event is full. You're #${waitPos(me)} on the wait list and will move up automatically if a spot opens.`:me&&me.approved?(me.team==null?"You're in ✓ Pick a partner below.":"You're in with a partner ✓ Waiting for the director to start."):cash()?`Pay the ${$$(+T.fee)} entry fee to the director, then you'll be approved.`:'Waiting for the director to approve you.'}
+    return;
+  }
   if(rb){
     if(adm&&ok&&!isSeries()){
       if(document.activeElement?.id!=='rsel'){
@@ -1349,12 +1543,13 @@ function playHTML(){
   <div class="tabs" id="tabs"></div>
   <div class="card" id="round"></div>
   <div class="card" id="ctl"></div>
+  ${isBracket()?'<div class="card" id="bkt"></div>':''}
   <div class="card"><h2 id="sh">Standings</h2><table id="st"></table>
     <div class="note" id="rnote"></div><div class="note" id="tienote"></div></div>
   ${isAdmin()?`<div style="text-align:center;margin-top:6px"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>`:''}`;
 }
 function renderTabs(){
-  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:'Round '+(i+1)}${r.some(m=>m.fix)?' ✎':''}</button>`).join('');
+  $('tabs').innerHTML=T.rounds.map((r,i)=>`<button class="${i==cur?'on ':''}${i>=T.current_round?'up ':''}${allIn(r)?'done':''}" data-act="tab" data-r="${i}">${isSeries()&&r[0].s?`S${r[0].s} · G${r[0].g}`:rShort(i)||'Round '+(i+1)}${r.some(m=>m.fix)?' ✎':''}</button>`).join('');
 }
 function byesOf(ri){const on=new Set();T.rounds[ri].forEach(m=>[...m.a,...m.b].forEach(i=>on.add(seatOf(i))));return T.players.map((_,i)=>i).filter(i=>!swapList().some(w=>w.in===i)).filter(k=>!on.has(k)).map(k=>occupantAt(k,ri))}
 function byeHTML(ri){
@@ -1367,7 +1562,7 @@ function renderRound(){
   const ri=cur,R=T.rounds[ri];
   const n=R.filter(filled).length;
   const sm=isSeries()?R[0]:null,ss=sm?seriesState(sm.s):null;
-  const head=sm?`Series ${sm.s} of 3 · Game ${sm.g}`:`Round ${ri+1} of ${T.rounds.length}`;
+  const head=sm?`Series ${sm.s} of 3 · Game ${sm.g}`:isBracket()?(brRound(R)?rLabel(ri):`Round robin · round ${ri+1} of ${T.rounds.filter(x=>!brRound(x)).length}`):`Round ${ri+1} of ${T.rounds.length}`;
   const tally=ss?`<div class="note" style="margin:0 0 8px">${team(ss.m0.a)} <b>${ss.wa}</b> – <b>${ss.wb}</b> ${team(ss.m0.b)}${sm.g===3?' · game 3 decides it':' · first to 2 games'}</div>`:'';
   $('round').innerHTML=`<h2>${head} <span class="note" style="font-weight:400">· ${ri>=T.current_round?'upcoming':`${n} of ${R.length} scores in`}</span></h2>${cash()?'<div class="note" style="margin:0 0 6px">Moneyball: games to 11, win by 1</div>':''}${tally}`+R.map((m,j)=>{
     const edit=canEdit(ri,m),mineM=inMatch(m);
@@ -1380,10 +1575,10 @@ function renderRound(){
     else if(edit)foot=`<div class="foot"><button data-act="submit" data-m="${j}">${filled(m)?'Correct score':'Submit score'}</button>${filled(m)&&m.by?`<span>Entered by ${esc(m.by)}</span>`:''}</div>`;
     else if(filled(m)&&m.by)foot=`<div class="foot"><span>Final · entered by ${esc(m.by)}</span></div>`;
     else if(!filled(m)&&ri+1===T.current_round&&T.status==='playing')foot=`<div class="foot"><span>Waiting for score</span></div>`;
-    return `<div class="match${mineM?' mine':''}">${R.length>1?`<div class="ct">Court ${j+1}</div>`:''}<div class="t">${team(m.a)}</div>${box('sa')}
+    return `<div class="match${mineM?' mine':''}">${R.length>1||m.bz||m.ph==='br'?`<div class="ct">${R.length>1?`Court ${j+1}`:''}${m.pool!=null&&twoPools()?`${R.length>1?' · ':''}Pool ${PN[m.pool]}`:''}${m.ph==='br'?`${R.length>1?' · ':''}${m.bz?'Bronze match':brName(m.lv,brSize())}`:''}</div>`:''}<div class="t">${m.sd?`<span class="note" style="margin:0">(${m.sd[0]}) </span>`:''}${team(m.a)}</div>${box('sa')}
     <div class="vs">${mineM?'your game · ':''}vs</div>
-    <div class="t">${team(m.b)}</div>${box('sb')}${foot}${fixNote(m)}</div>`;
-  }).join('')+byeHTML(ri);
+    <div class="t">${m.sd?`<span class="note" style="margin:0">(${m.sd[1]}) </span>`:''}${team(m.b)}</div>${box('sb')}${foot}${fixNote(m)}</div>`;
+  }).join('')+(brRound(R)?'':byeHTML(ri));
 }
 function renderBanner(){
   const el=$('mybanner');if(!el)return;
@@ -1391,7 +1586,7 @@ function renderBanner(){
   if(me<0||T.status!=='playing'){el.innerHTML='';return}
   const cr=T.current_round,R=T.rounds[cr-1];
   const sides=m=>{const mi=m.a.includes(me)?m.a:m.b,op=m.a.includes(me)?m.b:m.a;return {pt:mi.filter(i=>i!==me).map(i=>esc(T.players[i])).join(' &amp; '),op:team(op)}};
-  const lab=(ri,j,m)=>(T.rounds[ri].length>1?`Court ${j+1} · `:'')+(isSeries()&&m.s?`Series ${m.s}, game ${m.g}`:`Round ${ri+1}`);
+  const lab=(ri,j,m)=>(T.rounds[ri].length>1?`Court ${j+1} · `:'')+(isSeries()&&m.s?`Series ${m.s}, game ${m.g}`:isBracket()&&m.ph==='br'?(m.bz?'Bronze match':brName(m.lv,brSize())):`Round ${ri+1}`);
   let next=null;
   for(let ri=cr;ri<T.rounds.length&&!next;ri++){const j=T.rounds[ri].findIndex(inMatch);if(j>=0)next={ri,j,m:T.rounds[ri][j]}}
   const nx=next?(()=>{const x=sides(next.m);return `<div class="nx">Next: ${lab(next.ri,next.j,next.m)}${x.pt?' · with '+x.pt:''} vs ${x.op}</div>`})():'';
@@ -1418,15 +1613,16 @@ function renderStrip(){
 }
 function renderCtl(){
   const el=$('ctl');if(!el)return;
-  const cr=T.current_round,R=T.rounds[cr-1],total=T.rounds.length,done=allIn(R),last=cr===total;
+  const cr=T.current_round,R=T.rounds[cr-1],total=T.rounds.length,done=allIn(R),last=cr===total&&(!isBracket()||bracketOver()),seeding=isBracket()&&cr===total&&!last;
   const waiting=R.map(m=>filled(m)?null:`${team(m.a)} vs ${team(m.b)}`).filter(Boolean);
-  let h=`<h2>${unit()} ${cr} status</h2><div>${R.filter(filled).length} of ${R.length} games reported</div>`;
+  let h=`<h2>${isBracket()?(brRound(R)?rLabel(cr-1):'Round robin · round '+cr):unit()+' '+cr} status</h2><div>${R.filter(filled).length} of ${R.length} games reported</div>`;
   if(waiting.length)h+=`<div class="note">Still playing: ${waiting.join(' · ')}</div>`;
   const auto=last?'':` The next ${unit().toLowerCase()} starts by itself once every game has a score.`;
   if(isAdmin()){
     if(last&&done&&finAsk)h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>Finish this event?</b><div class="note" style="margin:6px 0 0">Scores can't be changed after this. Payouts and ratings are final.</div><div class="row" style="margin-top:8px"><button data-act="finishok">Yes, finish</button><button class="sec" data-act="finishno">Not yet</button></div></div>`;
+    else if(seeding&&done)h+=`<div class="note">Setting up the next bracket round…</div>`;
     else if(last||done)h+=`<button class="sp" data-act="${last?'finish':'nextround'}" ${done?'':'disabled'}>${last?'<span aria-hidden="true">🏁</span> Finish event':'<span aria-hidden="true">⏭</span> Start '+unit().toLowerCase()+' '+(cr+1)}</button>`;
-    if(!done)h+=`<div class="note">${last?'Finish unlocks when every game has a score.':`The next ${unit().toLowerCase()} starts by itself once every game has a score.`} You can enter or fix any score yourself.</div>`;
+    if(!done)h+=`<div class="note">${last||seeding?(isBracket()?(brRound(R)?'The next bracket round is set up as soon as these scores are in.':'The bracket is seeded as soon as the round robin is done.'):'Finish unlocks when every game has a score.'):`The next ${unit().toLowerCase()} starts by itself once every game has a score.`} You can enter or fix any score yourself.</div>`;
     const all=T.rounds.flat(),sc=all.filter(filled).length,un=all.length-sc;
     if(endAsk){
       const gs=standings().map(x=>x.g),lo=Math.min(...gs),hi=Math.max(...gs);
@@ -1439,16 +1635,18 @@ function renderCtl(){
   el.innerHTML=h;
 }
 function renderStand(){
-  const lg=isLeagueNight(),c=cash(),p=c?payoutsFor(seatCount(),+T.fee||0):[],st=lg?standingsLeague():placed(standings(),p);
+  const bk=isBracket(),lg=isLeagueNight()||bk,c=cash()&&!bk,p=c?payoutsFor(seatCount(),+T.fee||0):[],st=lg?standingsLeague():placed(standings(),p);
+  if(bk&&$('bkt'))$('bkt').innerHTML=bracketHTML();
   const over=tournamentOver();
-  $('sh').textContent=over?'Final standings':c?'Standings (projected payouts)':'Standings';
+  $('sh').textContent=bk?(twoPools()?'Pool standings':'Round robin standings'):over?'Final standings':c?'Standings (projected payouts)':'Standings';
   const sr=isSeries();
-  if(lg)$('st').innerHTML=teamTable(st);
+  if(bk&&twoPools()){$('st').innerHTML='';$('st').outerHTML=`<div id="st">${[0,1].map(q=>`<div class="grp">Pool ${PN[q]}</div><table>${teamTable(standingsLeague(q))}</table>`).join('')}</div>`}
+  else if(lg)$('st').innerHTML=teamTable(st);
   else $('st').innerHTML=(sr?'<tr><th>#</th><th>Player</th><th>Series</th><th>Games</th><th>+/−</th>':'<tr><th>#</th><th>Player</th><th>Wins</th><th>Pts</th><th>+/−</th>')+(c?'<th>Payout</th>':'')+'</tr>'+st.map((x,i)=>`<tr class="${T.pids?.[x.i]&&T.pids[x.i]===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl}</td><td>${pl(x.n,T.pids?.[x.i])}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw}</td><td>${x.gw}–${x.g-x.gw}</td>`:`<td>${x.gw}</td><td>${x.pf}</td>`}<td>${x.pf-x.pa>0?'+':''}${x.pf-x.pa}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('');
   const tn=$('tienote');if(tn)tn.innerHTML=lg?swapNotes():tieNotes(st,c)+swapNotes();
-  const nt=$('rnote');if(nt)nt.textContent=lg?'Ranked by wins. Teams level on wins are separated by the game between them, then by point differential. Partners stay together all season.':sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
+  const nt=$('rnote');if(nt)nt.textContent=bk?`${twoPools()?(brSize()===2?'Each pool winner goes to the final.':`The top ${brSize()/2} from each pool go into the bracket, crossing over (Pool A #1 plays Pool B #2).`):`Seeds for the bracket: the top ${brSize()} go in.`} Ranked by wins, then the game between teams level on wins, then point differential, then points scored.`:lg?'Ranked by wins. Teams level on wins are separated by the game between them, then by point differential. Partners stay together all season.':sr?'Ranked by series won, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.':'Ranked by total points scored, then total games won. Players still level share the place and split the prize money. Nobody is paid less than the entry fee, so a pot too small to share goes to one of them by random draw.';
   renderBanner();renderStrip();
-  $('pool').textContent=lg?`League night ${T.night||''} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`:c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${seatCount()} players = ${$$(+T.fee*seatCount())} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
+  $('pool').textContent=bk?(cash()?`Round robin + bracket · Code ${T.code} · Entry ${$$(+T.fee)} × ${seatCount()} = ${$$(+T.fee*seatCount())} pool`:`Round robin + bracket · Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`):lg?`League night ${T.night||''} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`:c?`Code ${T.code} · Entry ${$$(+T.fee)} × ${seatCount()} players = ${$$(+T.fee*seatCount())} pool`:`Code ${T.code} · ${typeText(T)}${typeOf(T)==='fun'?' (not rated)':''}`;
 }
 function renderPlayBody(){
   if(cur>=T.rounds.length)cur=T.rounds.length-1;
@@ -1457,6 +1655,7 @@ function renderPlayBody(){
 }
 function doneHTML(){
   if(isFree(T))return doneOpenHTML();
+  if(isBracket())return doneBracketHTML();
   if(isLeagueNight()){
     const r=T.result||[];
     return `<div class="top"><h1>${ttl('Night results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
@@ -1472,16 +1671,26 @@ function doneHTML(){
   r.map((x,i)=>`<tr class="${x.p&&x.p===prof.id?'me':''}"><td>${x.tie?'T':''}${x.pl||i+1}</td><td>${pl(x.n,x.p)}${x.was?.length?`<div class="note" style="margin:0">for ${esc(x.was.join(', '))}</div>`:''}</td>${sr?`<td>${x.sw??''}</td><td>${x.gw!=null?x.gw+'–'+(x.g-x.gw):''}</td>`:`<td>${x.gw!=null?x.gw:''}</td><td>${x.pf}</td>`}<td>${x.d>0?'+':''}${x.d}</td>${c?`<td class="pay">${x.pay?$$(x.pay):''}</td>`:''}</tr>`).join('')+
   `</table>${r.some(x=>x.tie)||swapList().length?`<div class="note" id="tienote">${tieNotes(r.map(x=>({...x,pl:x.pl||0})),c)}${swapNotes()}</div>`:''}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
 }
+function doneBracketHTML(){
+  const r=T.result||[],c=cash(),tm=[];
+  r.forEach(x=>{let t=tm.find(y=>y.tm===x.tm);if(!t)tm.push(t={tm:x.tm,pl:x.pl,tie:x.tie,pay:x.pay,gw:x.gw,g:x.g,d:x.d,ps:[]});t.ps.push(x.p)});
+  return `<div class="top"><h1>${ttl('Final results')}</h1><button class="sec" data-act="home"><span aria-hidden="true">🏠</span> Home</button></div>${nameBar()}
+  <div class="sub">${new Date(T.created_at).toLocaleDateString()} · Round robin + bracket · ${tm.length} teams${c?` · ${$$(+T.fee*r.length)} pool · entry ${$$(+T.fee)}`:` · ${typeText(T).toLowerCase()}${typeOf(T)==='fun'?' (not rated)':''}`}</div>${T.ended_early?'<div class="note" style="margin:0 0 8px"><span aria-hidden="true">⏹</span> Ended early when time ran out.</div>':''}
+  ${noteCard()}<div class="card"><div class="top"><h2 style="margin:0">🏆 ${esc(tm[0]?.tm||'')}</h2><button class="sec sm" data-act="dopen" data-d="report"><span aria-hidden="true">📄</span> Report</button></div>
+  <table><tr><th>#</th><th style="text-align:left">Team</th><th>RR W–L</th>${c?'<th>Each</th>':''}</tr>${tm.map(t=>`<tr class="${prof&&t.ps.includes(prof.id)?'me':''}"><td>${t.tie?'T':''}${t.pl}</td><td style="text-align:left">${esc(t.tm)}</td><td>${t.gw}–${t.g-t.gw}</td>${c?`<td>${t.pay?$$(t.pay):''}</td>`:''}</tr>`).join('')}</table>
+  ${swapList().length?`<div class="note">${swapNotes()}</div>`:''}</div>
+  <div class="card">${bracketHTML()}</div>${doneGamesHTML()}${isAdmin()?'<div style="text-align:center"><button class="del" data-act="del"><span aria-hidden="true">🗑</span> Delete event</button></div>':''}`;
+}
 function doneGamesHTML(){
   if(!Array.isArray(T.rounds))return '';
   const nm=i=>pl(T.players?.[i],T.pids?.[i]);
   const side=(ix,w)=>`<span class="t"${w?' style="color:var(--ac)"':''}>${ix.map(nm).join(' &amp; ')}</span>`;
   return `<div class="card"><h2>Games</h2>`+T.rounds.map((R,ri)=>{
     const bye=byesOf(ri);
-    return `<div class="grp">${isSeries()&&R[0].s?`Series ${R[0].s} · Game ${R[0].g}`:'Round '+(ri+1)}</div>`+R.map(m=>{
+    return `<div class="grp">${rLabel(ri)}</div>`+R.map(m=>{
       const sa=+m.sa,sb=+m.sb,mine=!!prof&&[...m.a,...m.b].some(i=>T.pids?.[i]===prof.id);
       return `<div class="mrow first" style="border-top:1px solid var(--bd)${mine?';background:var(--ac2);border-radius:8px;padding-left:6px;padding-right:6px':''}"><div>${side(m.a,sa>sb)} <b>${esc(m.sa)}</b> – <b>${esc(m.sb)}</b> ${side(m.b,sb>sa)}${m.fix?` <span class="note" style="margin:0;color:var(--gold)" title="Corrected by ${esc(m.fix.by)}, was ${esc(m.fix.was)}">✎ corrected (was ${esc(m.fix.first||m.fix.was)})</span>`:''}</div></div>`;
-    }).join('')+(bye.length?`<div class="note" style="margin:2px 0 0">Sat out: ${bye.map(nm).join(', ')}</div>`:'');
+    }).join('')+(bye.length&&!brRound(R)?`<div class="note" style="margin:2px 0 0">Sat out: ${bye.map(nm).join(', ')}</div>`:'');
   }).join('')+`</div>`;
 }
 
@@ -1795,7 +2004,7 @@ function unsubscribe(){
 async function openT(id){
   const {data,error}=await sb.from('tournaments').select('*').eq('id',id).maybeSingle();
   if(error||!data)return false;
-  dlg='';renaming=false;T=data;NOTE=null;await loadMembers();games=[];LN=[];if(isFree(T))await loadGames();if(T.kind==='league')await loadNights();if(T.status==='done'||T.kind==='league')await loadNote();drafts={};editG='';pick=defaultPick();
+  dlg='';renaming=false;T=data;NOTE=null;await loadMembers();if(T.format==='bracket'&&T.status==='lobby'&&!board.length){try{const b=await sb.rpc('leaderboard');board=Array.isArray(b.data)?b.data:[]}catch(e){}}games=[];LN=[];if(isFree(T))await loadGames();if(T.kind==='league')await loadNights();if(T.status==='done'||T.kind==='league')await loadNote();drafts={};editG='';pick=defaultPick();
   ls.set('pb_last',id);
   view=viewFor(T.status);
   cur=view==='play'?T.current_round-1:0;
@@ -1821,7 +2030,7 @@ async function refresh(){
     T=data;await loadMembers();if(T.status==='done'||T.kind==='league')await loadNote();
     if((T.swaps||[]).length>oldSwaps&&view==='play'){const w=T.swaps[T.swaps.length-1];toast(`🔁 ${T.players[w.in]} now plays for ${T.players[w.out]}`)}
     (T.rounds||[]).forEach((r,ri)=>r.forEach((m,j)=>{if(m.fix&&oldFix.get(ri+'-'+j)!==m.fix.at&&m.fix.by!==prof?.username&&view==='play')toast(`✎ ${m.fix.by} corrected a score: ${[...m.a].map(i=>T.players[i]).join(' & ')} ${m.sa}–${m.sb} ${[...m.b].map(i=>T.players[i]).join(' & ')} (was ${m.fix.was})`)}));if(isFree(T))await loadGames();
-    if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(`${unit()} ${T.current_round} has started`)}
+    if(T.current_round>oldCR){if(cur===oldCR-1){cur=T.current_round-1;drafts={}}toast(isBracket()&&brRound(T.rounds[T.current_round-1])?`🏅 ${rLabel(T.current_round-1)}: you're up when your court is free`.replace(/^🏅 (.*?): .*/,(x,n)=>`🏅 ${n} ${/s$/.test(n)?'have':'has'} started`):`${unit()} ${T.current_round} has started`)}
     const v=viewFor(T.status);
     if(v!==view||wasAdmin!==isAdmin()){view=v;if(v==='play')cur=Math.min(cur,T.current_round-1);render();return}
     if(view==='league'){
@@ -1977,7 +2186,7 @@ const actions={
     try{await rpc('sign_out')}catch(e){return}
     unsubscribe();prof=null;T=null;M=[];mine=[];ls.del('pb_last');ls.del(HOME_KEY);authMode='in';view='auth';render();
   },
-  fmt(el){const k=el.dataset.k;newKind=k==='open'?'open':k==='openplay'?'openplay':k==='league'?'league':'scramble';newFormat=k==='series'?'series':'random';if((k==='open'||k==='openplay'||k==='league')&&newType==='money')newType='rated';renderModal()},
+  fmt(el){const k=el.dataset.k;newKind=k==='open'?'open':k==='openplay'?'openplay':k==='league'?'league':'scramble';newFormat=k==='series'?'series':k==='bracket'?'bracket':'random';if((k==='open'||k==='openplay'||k==='league')&&newType==='money')newType='rated';renderModal()},
   typ(el){newType=el.dataset.v;renderModal()},
   async player(el){
     const u=el.dataset.u;if(!u)return;
@@ -2078,6 +2287,10 @@ const actions={
     pa.innerHTML=reportHTML(currentReport());
     setTimeout(()=>window.print(),60);
   },
+  async poolmv(el){const plan=poolPlan();if(!plan)return;const no=+el.dataset.no,q=plan.pools[0].includes(no)?0:1;
+    const np=[plan.pools[0].slice(),plan.pools[1].slice()];np[q]=np[q].filter(x=>x!==no);np[1-q].push(no);
+    await rpc('set_pool_plan',{p_tid:T.id,p_plan:np});T.pool_plan=np;renderTeams();updateNote()},
+  async poolauto(){await rpc('set_pool_plan',{p_tid:T.id,p_plan:null});T.pool_plan=null;renderTeams();updateNote()},
   async lgstart(){await rpc('start_team',{p_tid:T.id});await refresh()},
   async lgjoin(el){await rpc('join_team',{p_tid:T.id,p_team:+el.dataset.team});await refresh()},
   async lgleave(el){await rpc('leave_team',{p_member:el.dataset.id});await refresh()},
@@ -2161,6 +2374,13 @@ const actions={
   async rm(el){await rpc('remove_member',{p_member_id:el.dataset.id});await refresh()},
   async start(){
     await loadMembers();
+    if(isBracket()){
+      const B=bracketReady();if(!B.ok){updateNote();return toast($('startnote')?.textContent||'Teams are not ready yet')}
+      if(!B.plan){await rpc('start_bracket',{p_tid:T.id,p_rounds:genLeagueRounds(B.nt)});await refresh();return}
+      const nos=lgTeams().full.map(t=>t.no).sort((a,b)=>a-b),pools=B.plan.pools.map(x=>x.map(no=>nos.indexOf(no)));
+      await rpc('start_bracket',{p_tid:T.id,p_rounds:genPoolRounds(pools),p_pools:pools});
+      await refresh();return;
+    }
     const ap=approved();
     if(!validN(ap.length)){toast(isSeries()?'A series needs exactly 4 approved players':`Need ${minN()} to ${Math.min(16,capN())} approved players`);updateNote();return}
     toast('Building the schedule…');await new Promise(r=>setTimeout(r,60));
@@ -2268,6 +2488,7 @@ document.addEventListener('change',async e=>{
   if(e.target.dataset&&e.target.dataset.pair){const v=e.target.value;if(!v)return;try{await rpc('assign_team',{p_tid:T.id,p_a:e.target.dataset.pair,p_b:v})}catch(err){}await refresh();return}
   if(e.target.dataset&&e.target.dataset.slot){pick[e.target.dataset.slot]=e.target.value;return}
   if(e.target.id==='rsel'){chosenR=+e.target.value;updateNote();return}
+  if((e.target.id==='bsize'||e.target.id==='bronze')&&isAdmin()){const v=+($('bsize')?.value||T.bracket_size||4),bz=$('bronze')?$('bronze').checked:T.bronze!==false;try{await rpc('set_bracket_opts',{p_tid:T.id,p_size:v,p_bronze:bz});T.bracket_size=v;T.bronze=bz}catch(err){}const rb=$('rbox');if(rb)rb.innerHTML='';updateNote();renderPayTable();return}
   if(e.target.id==='fee'&&isAdmin()){
     const v=Math.max(0,Math.min(1000,+e.target.value||0));
     T.fee=v;updateNote();
