@@ -327,7 +327,24 @@ function limitsCard(){
     <button class="sec" data-act="savelim">Save limits</button>
     <div class="note">${open?'':'You cannot start below the minimum. '}Once the event is full, new joiners go on a wait list and move up automatically when a spot opens or you raise the maximum.${lg?' Use even numbers, since players join in pairs.':''}</div>`:''}</div>`;
 }
+/* payouts at a glance: every paid place at the minimum and maximum number of players (and at today's count) */
+function payTable(){
+  if(!T||!cash()||!(+T.fee>0))return '';
+  const fee=+T.fee,lo=isSeries()?4:minN(),hi=isSeries()?4:Math.min(16,capN()),now=approved().length;
+  const cols=[{n:lo,lab:hi===lo?`${lo} players`:`Min · ${lo}`}];
+  if(now>lo&&now<hi&&validN(now))cols.push({n:now,lab:`Now · ${now}`,now:1});
+  if(hi>lo)cols.push({n:hi,lab:`Max · ${hi}`});
+  cols.forEach(c=>c.p=payoutsFor(c.n,fee));
+  const rows=Math.max(...cols.map(c=>c.p.length)),ord=i=>['1st','2nd','3rd','4th','5th','6th'][i]||(i+1)+'th';
+  const cell=(v,c)=>`<td style="text-align:right;${c.now?'font-weight:700;color:var(--ac)':''}">${v}</td>`;
+  let h=`<div class="grp" style="margin:14px 0 6px">Payouts</div><table class="ptbl"><tr><th style="text-align:left">Place</th>${cols.map(c=>`<th style="text-align:right;${c.now?'color:var(--ac)':''}">${c.lab}</th>`).join('')}</tr>`;
+  for(let i=0;i<rows;i++)h+=`<tr><td style="text-align:left">${ord(i)}</td>${cols.map(c=>cell(c.p[i]!=null?$$(c.p[i]):'<span style="color:var(--mu)">–</span>',c)).join('')}</tr>`;
+  h+=`<tr><td style="text-align:left;border-top:2px solid var(--bd)"><b>Pool</b></td>${cols.map(c=>cell(`<b>${$$(c.n*fee)}</b>`,c)).join('')}</tr></table>`;
+  return h+`<div class="note" style="margin-top:6px">${isSeries()?'First and second are paid.':'1st takes half the pool and the last paid place gets the entry fee back. More players pay more places.'}</div>`;
+}
+function renderPayTable(){const e=$('ptbl');if(e)e.innerHTML=payTable()}
 function syncLimits(){
+  renderPayTable();
   const a=$('limsum');if(a)a.innerHTML=limitsSummary();
   const mn=$('lmin'),mx=$('lmax');
   if(mn&&document.activeElement!==mn)mn.value=minN();
@@ -337,7 +354,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v57 · Nov 23, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v58 · Nov 25, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -1248,7 +1265,7 @@ function lobbyHTML(){
   <div class="card"><div class="row">
     ${cash()?`<div><label style="margin-top:0">Entry fee ($)</label>${adm?`<input id="fee" type="number" min="0" step="0.5" inputmode="decimal" value="${T.fee}">`:`<div class="t" style="padding:10px 0">${$$(+T.fee)}</div>`}</div>`:''}
     <div><label style="margin-top:0">Approved players</label><div class="t" style="padding:10px 0" id="pcount"></div></div></div>
-    <div id="rbox"></div><div class="note" id="startnote"></div></div>
+    <div id="rbox"></div><div class="note" id="startnote"></div><div id="ptbl"></div></div>
   ${limitsCard()}
   ${payCard()}
   <div class="card"><div id="mlist"></div>
@@ -1285,6 +1302,7 @@ const validN=n=>isSeries()?n===4:n>=minN()&&n<=Math.min(16,capN());
 let chosenR=0;
 const roundsFor=n=>roundChoices(n).includes(chosenR)?chosenR:defaultRounds(n);
 function updateNote(){
+  renderPayTable();
   const n=approved().length,w=M.length-n,ok=validN(n),adm=isAdmin();
   renderPay();
   if($('pcount'))$('pcount').textContent=n;
@@ -2242,6 +2260,8 @@ function flushDeferred(){
   if(needOp&&view==='op'&&!typing())renderOP();
 }
 document.addEventListener('focusout',()=>{setTimeout(flushDeferred,80)});
+/* payout table follows the entry fee as it is typed; the fee is saved when the box is left */
+document.addEventListener('input',e=>{if(e.target.id==='fee'&&T&&isAdmin()){const v=Math.max(0,Math.min(1000,+e.target.value||0));if(v>0){T.fee=v;renderPayTable()}}});
 document.addEventListener('change',async e=>{
   if(e.target.id==='twhen'){newWhen=e.target.value;return}
   if(e.target.id==='tnights'){newNights=+e.target.value||4;return}
