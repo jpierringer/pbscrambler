@@ -189,7 +189,7 @@ const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:
 const LOGO='<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true"><g transform="rotate(-30 14 20)"><rect x="4" y="3" width="19" height="23" rx="8" fill="#2f7d32"/><rect x="11.5" y="25" width="4" height="12" rx="2" fill="#8a5a2b"/></g><circle cx="29" cy="27" r="9" fill="#e5e83a" stroke="#9aa000" stroke-width="1"/><g fill="#9aa000"><circle cx="29" cy="22" r="1.3"/><circle cx="24.5" cy="25" r="1.3"/><circle cx="33.5" cy="25" r="1.3"/><circle cx="29" cy="27" r="1.3"/><circle cx="24.5" cy="30" r="1.3"/><circle cx="33.5" cy="30" r="1.3"/><circle cx="29" cy="32" r="1.3"/></g></svg>';
 const TITLE=`<h1 style="display:flex;align-items:center;gap:8px">${LOGO}Pickleball Scrambler</h1>`;
 
-let GN={},NOTE=null,endAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
+let GN={},NOTE=null,endAsk=false,rcAsk=false,actMem={},openG=[],homeTab='home',finAsk=false,sb,prof=null,T=null,M=[],mine=[],view='home',cur=0,chan=null,poll=null,busy=false,pendingCode='',authMode='in',drafts={},needRound=false,confirmKey='',games=[],pick={},editG='',needOpen=false,newKind='scramble',newFormat='random',newType='money',board=[],dlg='',showAllPast=false,feed=[],newName='',newWhen='',newWhere='',newNotes='',renaming=false,evt=null,plyr=null,plyrBack=[];
 
 let emailStep='enter',emailAddr='',mailC=null,fgStep='email',fgEmail='',nearby=[],extraReady=false,newNights=4,leagues=[],LN=[],pendingTeam=0;
 const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
@@ -377,7 +377,7 @@ const approved=()=>M.filter(m=>m.approved);
 const inMatch=m=>{const i=myIdx();return i>=0&&(m.a.includes(i)||m.b.includes(i))};
 const canEdit=(ri,m)=>T.status==='playing'&&ri<T.current_round&&(isAdmin()||(ri+1===T.current_round&&inMatch(m)));
 const allIn=r=>r.every(filled);
-const APP_VERSION='v60 · Nov 25, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
+const APP_VERSION='v61 · Nov 26, 2026';   /* bump on every release; shown in the profile dialog and on the sign-in screen */
 const verTag=()=>`<div class="note" style="text-align:center;margin:14px 0 4px">App ${APP_VERSION}</div>`;
 console.info('Pickleball Scrambler',APP_VERSION);
 const isSeries=()=>!!T&&T.format==='series';
@@ -440,12 +440,20 @@ function assignCourts(rounds,n){
     return out;
   });
 }
-function genSchedule(n,R){
+/* prev: rounds already played (seat numbers), so added rounds avoid repeat partners and keep sit-outs fair */
+function genSchedule(n,R,prev,noPartners){
   const b=n%4;               // players sitting out each round
-  for(let limit=2;limit<=4;limit++){
-    const tries=limit==2?400:300;
+  const seed=()=>{const partner=new Set(),opp={},byeCnt=Array(n).fill(0);
+    (prev||[]).forEach(PR=>{const inR=new Set();PR.forEach(m=>{[...m.a,...m.b].forEach(x=>inR.add(x));
+      if(!noPartners){partner.add(m.a[0]+'-'+m.a[1]);partner.add(m.a[1]+'-'+m.a[0]);partner.add(m.b[0]+'-'+m.b[1]);partner.add(m.b[1]+'-'+m.b[0])}
+      for(const x of m.a)for(const y of m.b){opp[x+'-'+y]=(opp[x+'-'+y]||0)+1;opp[y+'-'+x]=(opp[y+'-'+x]||0)+1}});
+      for(let i=0;i<n;i++)if(!inR.has(i))byeCnt[i]++});
+    return {partner,opp,byeCnt}};
+  const base=prev&&prev.length?Math.max(2,...Object.values(seed().opp)):2;
+  for(let limit=base;limit<=base+2;limit++){
+    const tries=limit==base?400:300;
     for(let attempt=0;attempt<tries;attempt++){
-      const partner=new Set(),opp={},byeCnt=Array(n).fill(0),rounds=[];let ok=true;
+      const {partner,opp,byeCnt}=seed(),rounds=[];let ok=true;
       for(let r=0;r<R&&ok;r++){
         let found=null;
         for(let t=0;t<150&&!found;t++){
@@ -1628,7 +1636,14 @@ function renderCtl(){
       const gs=standings().map(x=>x.g),lo=Math.min(...gs),hi=Math.max(...gs);
       h+=sc?`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>End the event now?</b><div class="note" style="margin:6px 0 0">${un?`The ${un} game${un==1?'':'s'} not played yet will be dropped. `:''}Standings${cash()?' and payouts':''} use the ${sc} scored game${sc==1?'':'s'}.${lo!==hi?` Players have played between ${lo} and ${hi} games.`:''} Nothing can be changed after this. Everyone is rated for the games they played.</div><div class="row" style="margin-top:8px"><button data-act="endok">Yes, end it now</button><button class="sec" data-act="endno">Keep playing</button></div></div>`
         :`<div class="note">No games have been scored yet, so there is nothing to close out. Delete the event instead.</div>`;
-    }else h+=`<div class="row sp" style="margin-top:10px"><button class="sec sm" data-act="dopen" data-d="swap"><span aria-hidden="true">🔁</span> Swap a player</button>${last&&done?'':'<button class="sec sm" data-act="endask"><span aria-hidden="true">⏹</span> End event early</button>'}</div>`;
+    }else if(rcAsk){
+      const n=seatCount(),scored=T.rounds.reduce((a,R,i)=>R.some(m=>m.sa!==''||m.sb!=='')?i+1:a,0),lo=Math.max(cr,scored,1);
+      const ch=[...new Set([...roundChoices(n),T.rounds.length])].filter(x=>x>=lo&&x<=20).sort((a,b)=>a-b);
+      h+=`<div class="confirm sp" style="background:var(--card);border:1px solid var(--ac);border-radius:10px;padding:10px;font-size:14px"><b>How many rounds?</b>
+        <div class="note" style="margin:6px 0 8px">Rounds already played stay as they are. New rounds avoid partnerships that already happened as far as possible, and sit-outs stay even.${n%4?' Only counts where everyone sits out the same number of times are listed.':''}</div>
+        <select id="rcsel">${ch.map(x=>`<option value="${x}"${x===T.rounds.length?' selected':''}>${x} rounds${x===T.rounds.length?' (now)':''}</option>`).join('')}</select>
+        <div class="row sp" style="margin-top:10px"><button data-act="rcsave">Save</button><button class="sec" data-act="rcno">Cancel</button></div></div>`;
+    }else h+=`<div class="row sp" style="margin-top:10px"><button class="sec sm" data-act="dopen" data-d="swap"><span aria-hidden="true">🔁</span> Swap a player</button>${T.kind==='scramble'&&T.format==='random'?'<button class="sec sm" data-act="rcask"><span aria-hidden="true">🔢</span> Rounds</button>':''}${last&&done?'':'<button class="sec sm" data-act="endask"><span aria-hidden="true">⏹</span> End event early</button>'}</div>`;
   }else{
     h+=`<div class="note">${done?(last?'All games are in. Waiting for the director to finish.':unit()+' complete. Waiting for the director to start '+unit().toLowerCase()+' '+(cr+1)+'.'):'Enter your score as soon as your game ends.'+auto}</div>`;
   }
@@ -2418,7 +2433,23 @@ const actions={
     if(isSeries()||(ri+1===T.current_round&&allIn(T.rounds[ri])))await refresh();
   },
   async nextround(){await rpc('next_round',{p_tid:T.id});await refresh();cur=T.current_round-1;renderPlayBody();window.scrollTo(0,0)},
-  endask(){endAsk=true;finAsk=false;renderCtl()},
+  endask(){endAsk=true;finAsk=false;rcAsk=false;renderCtl()},
+  rcask(){rcAsk=true;endAsk=false;finAsk=false;renderCtl()},
+  rcno(){rcAsk=false;renderCtl()},
+  async rcsave(){
+    const want=+($('rcsel')?.value||T.rounds.length),have=T.rounds.length;
+    if(want===have){rcAsk=false;renderCtl();return}
+    let extra=[];
+    if(want>have){
+      const n=seatCount(),toSeat=m=>({a:m.a.map(seatOf),b:m.b.map(seatOf)});
+      const prev=T.rounds.map(R=>R.map(toSeat));
+      let gen=genSchedule(n,want-have,prev)||genSchedule(n,want-have,prev,true);
+      if(!gen)return toast('Could not build those rounds. Try fewer');
+      extra=gen.map(R=>R.map(m=>({a:m.a.map(occupantOf),b:m.b.map(occupantOf),sa:'',sb:''})));
+    }
+    await rpc('change_rounds',{p_tid:T.id,p_count:want,p_extra:want>have?extra:null});
+    rcAsk=false;toast(`Now ${want} rounds`);await refresh();
+  },
   endno(){endAsk=false;renderCtl()},
   async endok(){
     endAsk=false;
